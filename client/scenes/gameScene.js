@@ -6,16 +6,26 @@ import Cursors from '../components/cursors'
 export default class GameScene extends Scene {
   constructor() {
     super({ key: 'GameScene' })
-    this.objects = {}
+    this.players = {}
     this.playerID
+    this.levelN = '1'
   }
 
   init({ channel }) {
     this.channel = channel
   }
 
+  playerRemove(playerID) {
+    try {
+      this.players[playerID].destroy()
+      delete this.players[playerID]
+    } 
+    catch (error) {
+      console.error(error.message)
+    }
+  }
+
   setLevel(levelN) {
-    levelN = levelN.toString()
     this.level = this.make.tilemap({ key: 'level' + levelN })
     this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
 
@@ -58,7 +68,7 @@ export default class GameScene extends Scene {
     new Cursors(this, this.channel)
 
     this.setGroups()
-    this.setLevel(1)
+    this.setLevel('1')
     this.setWallsDebug(false)
 
     const parseUpdates = updates => {
@@ -71,39 +81,80 @@ export default class GameScene extends Scene {
       let u2 = []
 
       u.forEach((el, i) => {
-        if (i % 4 === 0) {
+        if (i % 5 === 0) {
           u2.push({
             playerID: u[i + 0],
-            x: parseInt(u[i + 1], 36),
-            y: parseInt(u[i + 2], 36),
-            dead: parseInt(u[i + 3]) === 1 ? true : false
+            dead: parseInt(u[i + 1]) === 1 ? true : false,
+            levelN: u[i + 2],
+            x: parseInt(u[i + 3], 36),
+            y: parseInt(u[i + 4], 36)
           })
         }
       })
       return u2
     }
 
-    const updatesHandler = updates => {
-      updates.forEach(gameObject => {
-        const { playerID, x, y, dead } = gameObject
+    const updatesHandler = playersUpdates => {
+
+      playersUpdates.forEach(playerUpdate => {
+        if (this.playerID.toString() === playerUpdate.playerID) {
+          if (playerUpdate.levelN != this.levelN) {
+            this.levelN = playerUpdate.levelN
+
+            this.background.destroy()
+            this.floor.destroy()
+            this.scenery.destroy()
+            this.doors.destroy()
+
+            this.setLevel(this.levelN)
+            this.setWallsDebug(false)
+            
+            // Only show players from this level
+            Object.entries(this.players).forEach(([playerID, playerTarget]) => {
+              if (playerTarget.levelN != this.levelN) {
+                console.log('Remove player', playerID, 'from this level:', this.levelN)
+                playerTarget.setAlpha(0)
+                // this.playerRemove(player.playerID)
+              }
+              else {
+                console.log('Show player', playerID, 'from this level:', this.levelN)
+                playerTarget.setAlpha(1)                
+              }
+            })
+          }
+        }
+      })
+
+      playersUpdates.forEach(playerUpdate => {
+        const { playerID, dead, levelN, x, y } = playerUpdate
         const alpha = dead ? 0 : 1
 
-        if (Object.keys(this.objects).includes(playerID)) {
-          // if the gameObject does already exist,
-          // update the gameObject
-          let sprite = this.objects[playerID].sprite
-          sprite.setAlpha(alpha)
-          sprite.animate(x, y)
-          sprite.setPosition(x, y)
-        } else {
-          // if the gameObject does NOT exist,
-          // create a new gameObject
-          let newGameObject = {
-            sprite: new Player(this, playerID, x || 200, y || 200, 'player'),
-            playerID: playerID
+        console.log('Player update!', playerID)
+
+        if (Object.keys(this.players).includes(playerID)) {
+          let player = this.players[playerID]
+          if (levelN === this.levelN) {
+            player.setAlpha(alpha)
           }
-          newGameObject.sprite.setAlpha(alpha)
-          this.objects = { ...this.objects, [playerID]: newGameObject }
+          else {
+            player.setAlpha(0)            
+          }
+          player.levelN = levelN
+          player.animate(x, y)
+          player.setPosition(x, y)
+        }
+        else {
+          console.log('New player!',  playerID)
+
+          let newPlayer = new Player(this, playerID, levelN, x || 200, y || 200, 'player')
+          if (levelN === this.levelN) {
+            newPlayer.setAlpha(alpha)
+          }
+          else {
+            newPlayer.setAlpha(0)            
+          }          
+          newPlayer.setDepth(99) // !Revise
+          this.players = { ...this.players, [playerID]: newPlayer }
         }
       })
     }
@@ -137,8 +188,8 @@ export default class GameScene extends Scene {
      * 
      * Client: updates players
      */
-    this.channel.on('updatePlayers', updates => {
-      let parsedUpdates = parseUpdates(updates[0])
+     this.channel.on('playersUpdate', playerUpdates => {
+      let parsedUpdates = parseUpdates(playerUpdates[0])
       updatesHandler(parsedUpdates)
     })
 
@@ -147,13 +198,8 @@ export default class GameScene extends Scene {
      * 
      * Client: deletes player
      */
-    this.channel.on('playerRemove', playerID => {
-      try {
-        this.objects[playerID].sprite.destroy()
-        delete this.objects[playerID]
-      } catch (error) {
-        console.error(error.message)
-      }
+     this.channel.on('playerRemove', playerID => {
+      this.playerRemove(playerID)
     })
   }
 }

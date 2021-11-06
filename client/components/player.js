@@ -1,11 +1,12 @@
 import Phaser from 'phaser'
 
 export default class Player extends Phaser.GameObjects.Sprite {
-  constructor(scene, channelId, x, y, texture) {
+  constructor(scene, playerID, levelN, x, y, texture) {
     super(scene, x, y, texture)
     scene.add.existing(this)
 
-    this.channelId = channelId
+    this.playerID = playerID
+    this.levelN = levelN
     this.texture = texture
 
     this.setAnims()

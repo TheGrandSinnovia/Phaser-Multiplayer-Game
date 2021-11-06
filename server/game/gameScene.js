@@ -42,9 +42,7 @@ export class GameScene extends Phaser.Scene {
    * @return {string}
    */
   encodePlayerData(player) {
-    return `${player.playerID},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},${
-      player.dead === true ? 1 : 0
-    },`
+    return `${player.playerID},${player.dead === true ? 1 : 0},${player.levelN},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},`
   }
 
   /**
@@ -109,7 +107,7 @@ export class GameScene extends Phaser.Scene {
 
     function warpHandler(player, warp) {
       let newLevelN = warp.name
-      player.levelWarpedN = newLevelN
+      player.levelN = newLevelN
       console.log('Warp collision to level:', newLevelN, Phaser.Math.RND.integerInRange(0, 100))
     }
 
@@ -133,7 +131,7 @@ export class GameScene extends Phaser.Scene {
       /**
        * Client: user disconnects
        * 
-       * Server [response]: deletes player
+       * Server [response]: kills player
        */
       channel.onDisconnect(() => {
         console.log('Disconnect user ' + channel.id)
@@ -141,7 +139,6 @@ export class GameScene extends Phaser.Scene {
           players.children.iterate(player => {
             if (player.playerID === channel.playerID) {
               player.kill()
-              
             }
           })
         })
@@ -178,7 +175,9 @@ export class GameScene extends Phaser.Scene {
           dead.revive(channel.playerID, false)
         }
         else {
-          this.levelPlayers[levelN].add(new Player(this, channel.playerID, Phaser.Math.RND.integerInRange(100, 700)))
+          let playerNew = new Player(this, channel.playerID, Phaser.Math.RND.integerInRange(100, 700))
+          playerNew.levelN = '1'
+          this.levelPlayers[levelN].add(playerNew)
         }
         this.playerSpawned = true
         this.setLevel(levelN)
@@ -204,38 +203,59 @@ export class GameScene extends Phaser.Scene {
   }
 
   update() {
-    let updates = ''
+    let playersUpdates = ''
+    let playersWarped = []
     Object.entries(this.levelPlayers).forEach(([levelN, players]) => {
       players.children.iterate(player => {
-        let update
+        let playerUpdate
         // Check if there has been any change in selected player attributes
+        let dead = player.dead != player.prevDead
+        let warped = player.levelN != player.prevLevelN
         let x = Math.abs(player.x - player.prevX) > 0.5
         let y = Math.abs(player.y - player.prevY) > 0.5
-        let dead = player.dead != player.prevDead
         // Save all players that need an update
-        if (x || y || dead || this.playerSpawned) {
+        if (this.playerSpawned || dead || warped || x || y) {
           if (dead || !player.dead) {
             player.idle = false
-            update = this.encodePlayerData(player)
+            playerUpdate = this.encodePlayerData(player)
           }
         }
         else if (!player.idle) {
           player.idle = true
-          update = this.encodePlayerData(player)
+          playerUpdate = this.encodePlayerData(player)
         }
-        if (update) {
-          updates += update
+        if (playerUpdate) {
+          playersUpdates += playerUpdate
         }
         // Save previous attribute data (before update)
         player.postUpdate()
+
+        if (warped) {
+          playersWarped.push(player)
+        }
       })
     })
-    if (updates.length > 0) {
+
+    if (playersWarped.length > 0) {
+      playersWarped.forEach(player => {
+        let prevLevelN = player.prevLevelN
+        let levelN = player.levelN
+        if (!Object.keys(this.levelPlayers).includes(levelN)) {
+          this.levelPlayers[levelN] = this.add.group()
+        }
+        player.prevLevelN = player.levelN
+        this.levelPlayers[prevLevelN].remove(player)
+        this.levelPlayers[levelN].add(player)
+        this.setLevel(levelN)
+      })
+    }
+
+    if (playersUpdates.length > 0) {
+      this.playerSpawned = false
       /**
        * Server [request]: update players
        */
-      this.playerSpawned = false
-      this.io.room().emit('updatePlayers', [updates])
+      this.io.room().emit('playersUpdate', [playersUpdates])
     }
   }
 }
