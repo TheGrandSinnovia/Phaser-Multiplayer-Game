@@ -59,52 +59,79 @@ export class GameScene extends Phaser.Scene {
     return state
   }
 
-  setMap() {
-    this.map = this.make.tilemap({ key: 'map1' })
-    this.tileset = this.map.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
-
-    this.walls = this.map.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
-
-    this.ball = this.physics.add.staticImage(64, 64, 'ball').setScale(2).setCircle(16).refreshBody()
-  }
-
   setGroups() {
     this.playersGroup = this.add.group()
     this.wallsGroup = this.add.group()
 
-    this.walls.forEach(wall => {
+    this.levelPlayers = {}
+    this.levelWalls = {}
+    this.levelWarps = {}
+  }
+
+  setLevel(levelN) {
+    levelN = levelN.toString()
+
+    this.level = this.make.tilemap({ key: 'level' + levelN })
+    this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
+
+    this.setWalls(levelN)
+    this.setWarps(levelN)
+    this.setCollisions(levelN)
+  }
+
+  setWalls(levelN) {
+    this.levelWalls[levelN] = this.level.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
+    this.levelWalls[levelN].forEach(wall => {
+      this.add.existing(wall)
       this.physics.add.existing(wall)
 
       wall.y = wall.y + wall.displayHeight
       wall.body.setEnable()
       wall.body.setImmovable()
-
-      this.wallsGroup.add(wall)
     })
   }
 
-  setCollisions() {
-    // this.scenery.setCollisionByExclusion([-1])  // All tiles
+  setWarps(levelN) {
+    this.levelWarps[levelN] = this.level.createFromObjects('Warp', { classType: Phaser.Physics.Arcade.Sprite })
+    this.levelWarps[levelN].forEach(warp => {
+      this.add.existing(warp)
+      this.physics.add.existing(warp)
+
+      warp.y = warp.y + warp.displayHeight
+      warp.body.setEnable()
+      warp.body.setImmovable()
+    })
+  }
+
+  setCollisions(levelN) {
     function collisionHandler (obj1, obj2) {
       console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
     }
 
+    function warpHandler(player, warp) {
+      let newLevelN = warp.name
+      player.levelWarpedN = newLevelN
+      console.log('Warp collision to level:', newLevelN, Phaser.Math.RND.integerInRange(0, 100))
+    }
+
+    // this.physics.add.collider(this.levelPlayers[levelN])
+    // this.physics.add.collider(this.levelPlayers[levelN], this.levelWalls[levelN], collisionHandler)
+    // this.physics.add.collider(this.levelPlayers[levelN], this.levelWarps[levelN], warpHandler)
+
     this.physics.add.collider(this.playersGroup)
-    this.physics.add.collider(this.playersGroup, this.ball)
-    this.physics.add.collider(this.playersGroup, this.walls, collisionHandler)
+    this.physics.add.collider(this.playersGroup, this.levelWalls[levelN], collisionHandler)
   }
 
   preload() {
     this.load.image('tiles', path.join(__dirname, '../../dist/assets/img/tilesets/tilesheet.png'))
-		this.load.tilemapTiledJSON('map1', path.join(__dirname, '../../dist/assets/maps/map1.json'))
+		this.load.tilemapTiledJSON('level1', path.join(__dirname, '../../dist/assets/levels/level1.json'))
+		this.load.tilemapTiledJSON('level2', path.join(__dirname, '../../dist/assets/levels/level2.json'))
 
     this.load.image('ball', path.join(__dirname, '../../dist/assets/img/objects/ball.png'))
   }
 
   create() {
-    this.setMap()
     this.setGroups()
-    this.setCollisions()
 
     this.io.onConnection(channel => {
       /**
@@ -144,6 +171,7 @@ export class GameScene extends Phaser.Scene {
         } else {
           this.playersGroup.add(new Player(this, channel.playerID, Phaser.Math.RND.integerInRange(100, 700)))
         }
+        this.setLevel(1)
       })
 
       /**

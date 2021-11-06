@@ -14,19 +14,22 @@ export default class GameScene extends Scene {
     this.channel = channel
   }
 
-  setMap() {
-    this.map = this.make.tilemap({ key: 'map1' })
-    this.tileset = this.map.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
+  setLevel(levelN) {
+    levelN = levelN.toString()
+    this.level = this.make.tilemap({ key: 'level' + levelN })
+    this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
 
-    this.background = this.map.createLayer('Background', this.tileset)
-    this.scenery = this.map.createLayer('Scenery', this.tileset).setDepth(100)
+    this.background = this.level.createLayer('Background', this.tileset)
+    this.floor = this.level.createLayer('Floor', this.tileset)
+    this.scenery = this.level.createLayer('Scenery', this.tileset).setDepth(100)
+    this.doors = this.level.createLayer('Doors', this.tileset).setDepth(101)
   
-    this.ball = this.physics.add.staticImage(64, 64, 'ball').setScale(2).setCircle(16).refreshBody()
+    // this.ball = this.physics.add.staticImage(64, 320, 'ball').setScale(2).setCircle(16).refreshBody()
   }
 
   setWallsDebug(debug) {
     if (debug) {
-      this.walls = this.map.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
+      this.walls = this.level.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
       this.wallsGroup = this.add.group()
   
       this.walls.forEach(wall => {
@@ -45,19 +48,18 @@ export default class GameScene extends Scene {
 
   preload() {
     this.load.image('tiles', 'assets/img/tilesets/tilesheet.png')
-		this.load.tilemapTiledJSON('map1', 'assets/maps/map1.json')
+		this.load.tilemapTiledJSON('level1', 'assets/levels/level1.json')
+    this.load.tilemapTiledJSON('level2', 'assets/levels/level2.json')
 
     this.load.spritesheet('player', 'assets/img/player/elfy.png', {frameWidth: 32, frameHeight: 32})
-    this.load.image('ball', 'assets/img/objects/ball.png')
   }
 
   async create() {
     new Cursors(this, this.channel)
 
-    this.setMap()
-    this.setWallsDebug(false)
     this.setGroups()
-    
+    this.setLevel(1)
+    this.setWallsDebug(false)
 
     const parseUpdates = updates => {
       if (typeof updates === undefined || updates === '') return []
