@@ -17,6 +17,7 @@ export class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene' })
     this.playerID = 0  // ID for the latest connected player
+    this.playerSpawned = false
   }
 
   init() {
@@ -69,8 +70,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   setLevel(levelN) {
-    levelN = levelN.toString()
-
     this.level = this.make.tilemap({ key: 'level' + levelN })
     this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
 
@@ -105,7 +104,7 @@ export class GameScene extends Phaser.Scene {
 
   setCollisions(levelN) {
     function collisionHandler (obj1, obj2) {
-      console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
+      // console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
     }
 
     function warpHandler(player, warp) {
@@ -114,12 +113,9 @@ export class GameScene extends Phaser.Scene {
       console.log('Warp collision to level:', newLevelN, Phaser.Math.RND.integerInRange(0, 100))
     }
 
-    // this.physics.add.collider(this.levelPlayers[levelN])
-    // this.physics.add.collider(this.levelPlayers[levelN], this.levelWalls[levelN], collisionHandler)
-    // this.physics.add.collider(this.levelPlayers[levelN], this.levelWarps[levelN], warpHandler)
-
-    this.physics.add.collider(this.playersGroup)
-    this.physics.add.collider(this.playersGroup, this.levelWalls[levelN], collisionHandler)
+    this.physics.add.collider(this.levelPlayers[levelN])
+    this.physics.add.collider(this.levelPlayers[levelN], this.levelWalls[levelN], collisionHandler)
+    this.physics.add.collider(this.levelPlayers[levelN], this.levelWarps[levelN], warpHandler)
   }
 
   preload() {
@@ -141,10 +137,13 @@ export class GameScene extends Phaser.Scene {
        */
       channel.onDisconnect(() => {
         console.log('Disconnect user ' + channel.id)
-        this.playersGroup.children.each(player => {
-          if (player.playerID === channel.playerID) {
-            player.kill()
-          }
+        Object.entries(this.levelPlayers).forEach(([levelN, players]) => {
+          players.children.iterate(player => {
+            if (player.playerID === channel.playerID) {
+              player.kill()
+              
+            }
+          })
         })
         channel.room.emit('playerRemove', channel.playerID)
       })
@@ -165,13 +164,24 @@ export class GameScene extends Phaser.Scene {
        * Server: creates new player instance and adds it to group
        */
       channel.on('playerAdd', data => {
-        let dead = this.playersGroup.getFirstDead()
+
+        let levelN = '1'
+        if (!Object.keys(this.levelPlayers).includes(levelN)) {
+          this.levelPlayers[levelN] = this.add.group()
+        }
+        let dead
+        Object.values(this.levelPlayers).forEach(players => {
+          dead = players.getFirstDead()
+        })
+
         if (dead) {
           dead.revive(channel.playerID, false)
-        } else {
-          this.playersGroup.add(new Player(this, channel.playerID, Phaser.Math.RND.integerInRange(100, 700)))
         }
-        this.setLevel(1)
+        else {
+          this.levelPlayers[levelN].add(new Player(this, channel.playerID, Phaser.Math.RND.integerInRange(100, 700)))
+        }
+        this.playerSpawned = true
+        this.setLevel(levelN)
       })
 
       /**
@@ -180,10 +190,12 @@ export class GameScene extends Phaser.Scene {
        * Server: sets new move
        */
       channel.on('playerMove', data => {
-        this.playersGroup.children.iterate(player => {
-          if (player.playerID === channel.playerID) {
-            player.setMove(data)
-          }
+        Object.entries(this.levelPlayers).forEach(([levelN, players])=> {
+          players.children.iterate(player => {
+            if (player.playerID === channel.playerID) {
+              player.setMove(data)
+            }
+          })
         })
       })
 
@@ -193,34 +205,36 @@ export class GameScene extends Phaser.Scene {
 
   update() {
     let updates = ''
-    this.playersGroup.children.iterate(player => {
-      let update
-      // Check if there has been any change in selected player attributes
-      let x = Math.abs(player.x - player.prevX) > 0.5
-      let y = Math.abs(player.y - player.prevY) > 0.5
-      let dead = player.dead != player.prevDead
-      // Save all players that need an update
-      if (x || y || dead) {
-        if (dead || !player.dead) {
-          player.idle = false
+    Object.entries(this.levelPlayers).forEach(([levelN, players]) => {
+      players.children.iterate(player => {
+        let update
+        // Check if there has been any change in selected player attributes
+        let x = Math.abs(player.x - player.prevX) > 0.5
+        let y = Math.abs(player.y - player.prevY) > 0.5
+        let dead = player.dead != player.prevDead
+        // Save all players that need an update
+        if (x || y || dead || this.playerSpawned) {
+          if (dead || !player.dead) {
+            player.idle = false
+            update = this.encodePlayerData(player)
+          }
+        }
+        else if (!player.idle) {
+          player.idle = true
           update = this.encodePlayerData(player)
         }
-      }
-      else if (!player.idle) {
-        player.idle = true
-        update = this.encodePlayerData(player)
-      }
-      if (update) {
-        updates += update
-      }
-      // Save previous attribute data (before update)
-      player.postUpdate()
+        if (update) {
+          updates += update
+        }
+        // Save previous attribute data (before update)
+        player.postUpdate()
+      })
     })
-
     if (updates.length > 0) {
       /**
        * Server [request]: update players
        */
+      this.playerSpawned = false
       this.io.room().emit('updatePlayers', [updates])
     }
   }

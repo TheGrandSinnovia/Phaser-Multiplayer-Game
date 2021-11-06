@@ -39,12 +39,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   kill() {
     this.dead = true
     this.setActive(false)
+    this.body.setEnable(false)
   }
 
   revive(playerID) {
     this.playerID = playerID
     this.dead = false
     this.setActive(true)
+    this.body.setEnable(true)
     this.setVelocity(0)
   }
 
