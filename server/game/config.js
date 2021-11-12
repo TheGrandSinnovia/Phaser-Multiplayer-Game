@@ -6,8 +6,8 @@ import { GameScene } from './gameScene.js'
 export const config = {
   type: Phaser.HEADLESS,
   parent: 'phaser-game',
-  width: 640,
-  height: 480,
+  width: 32 * 40,
+  height: 32 * 30,
   banner: false,
   audio: false,
   scene: [GameScene],

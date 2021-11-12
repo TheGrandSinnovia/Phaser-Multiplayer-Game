@@ -2,6 +2,7 @@ import { Scene } from 'phaser'
 import axios from 'axios'
 import Player from '../components/player'
 import Cursors from '../components/cursors'
+import CellMap from '../components/cellMap'
 
 export default class GameScene extends Scene {
   constructor() {
@@ -26,15 +27,40 @@ export default class GameScene extends Scene {
   }
 
   setLevel(levelN) {
-    this.level = this.make.tilemap({ key: 'level' + levelN })
-    this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
+    // this.level = this.make.tilemap({ key: 'level' + levelN })
+    // this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
 
-    this.background = this.level.createLayer('Background', this.tileset)
-    this.floor = this.level.createLayer('Floor', this.tileset)
-    this.scenery = this.level.createLayer('Scenery', this.tileset).setDepth(100)
-    this.doors = this.level.createLayer('Doors', this.tileset).setDepth(101)
+    // this.background = this.level.createLayer('Background', this.tileset)
+    // this.floor = this.level.createLayer('Floor', this.tileset)
+    // this.scenery = this.level.createLayer('Scenery', this.tileset).setDepth(100)
+    // this.doors = this.level.createLayer('Doors', this.tileset).setDepth(101)
+    
+    let floorTileSize = 32
+    let floorIndex = 12
+    let floorArray = []
+    let { width, height } = this.sys.game.canvas
+
+    for (let j = 0; j < height / floorTileSize; j++) {
+      let row = []
+      for (let i = 0; i < width / floorTileSize; i++) {
+        row.push(floorIndex)
+      }
+      floorArray.push(row)      
+    }
+
+    let tilemap = this.make.tilemap({ data: floorArray, tileWidth: floorTileSize, tileHeight: floorTileSize })
+    let tilesetImage = tilemap.addTilesetImage('tilesCave')
+    tilemap.createLayer(0, tilesetImage)
   
-    // this.ball = this.physics.add.staticImage(64, 320, 'ball').setScale(2).setCircle(16).refreshBody()
+    let map = new CellMap({
+      scene: this,
+      tileSize: 32,
+      seed: 12345,
+      preset: 'cave'
+    })
+
+    map.drawConsole()
+    map.drawPhaserTilemap(0, 'tilesCave')
   }
 
   setWallsDebug(debug) {
@@ -57,6 +83,9 @@ export default class GameScene extends Scene {
   }
 
   preload() {
+    this.load.image('ground', 'assets/img/objects/16x16_ground.png')
+    this.load.image('tilesCave', 'assets/img/tilesets/wang_cave.png')
+
     this.load.image('tiles', 'assets/img/tilesets/tilesheet.png')
 		this.load.tilemapTiledJSON('level1', 'assets/levels/level1.json')
     this.load.tilemapTiledJSON('level2', 'assets/levels/level2.json')
