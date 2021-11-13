@@ -11,7 +11,8 @@ import { iceServers } from '@geckos.io/server'
 import pkg from 'phaser'
 const { Scene } = pkg
 
-import { Player } from './components/player.js'
+import Player from './components/player.js'
+import CellMap from './components/cellMap.js'
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -68,12 +69,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   setLevel(levelN) {
-    this.level = this.make.tilemap({ key: 'level' + levelN })
-    this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
+    // this.level = this.make.tilemap({ key: 'level' + levelN })
+    // this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
 
-    this.setWalls(levelN)
-    this.setWarps(levelN)
-    this.setCollisions(levelN)
+    // this.setWalls(levelN)
+    // this.setWarps(levelN)
+    // this.setCollisions(levelN)
+
+    let map = new CellMap({
+      scene: this,
+      tileSize: 32,
+      seed: 123456,
+      preset: 'cave'
+    })
+
+    map.drawConsole()
+    map.drawPhaserTilemap({layerN: 0, tileset: 'tilesCave', collision: true})
   }
 
   setWalls(levelN) {
@@ -117,6 +128,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.image('tilesCave',  path.join(__dirname, '../../dist/assets/img/tilesets/wang_cave.png'))
+
     this.load.image('tiles', path.join(__dirname, '../../dist/assets/img/tilesets/tilesheet.png'))
 		this.load.tilemapTiledJSON('level1', path.join(__dirname, '../../dist/assets/levels/level1.json'))
 		this.load.tilemapTiledJSON('level2', path.join(__dirname, '../../dist/assets/levels/level2.json'))

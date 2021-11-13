@@ -1,4 +1,4 @@
-export class Player extends Phaser.Physics.Arcade.Sprite {
+export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, playerID, x = 200, y = 200) {
     super(scene, x, y, '')
     scene.add.existing(this)

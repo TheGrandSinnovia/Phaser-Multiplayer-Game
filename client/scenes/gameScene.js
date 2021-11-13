@@ -34,33 +34,16 @@ export default class GameScene extends Scene {
     // this.floor = this.level.createLayer('Floor', this.tileset)
     // this.scenery = this.level.createLayer('Scenery', this.tileset).setDepth(100)
     // this.doors = this.level.createLayer('Doors', this.tileset).setDepth(101)
-    
-    let floorTileSize = 32
-    let floorIndex = 12
-    let floorArray = []
-    let { width, height } = this.sys.game.canvas
-
-    for (let j = 0; j < height / floorTileSize; j++) {
-      let row = []
-      for (let i = 0; i < width / floorTileSize; i++) {
-        row.push(floorIndex)
-      }
-      floorArray.push(row)      
-    }
-
-    let tilemap = this.make.tilemap({ data: floorArray, tileWidth: floorTileSize, tileHeight: floorTileSize })
-    let tilesetImage = tilemap.addTilesetImage('tilesCave')
-    tilemap.createLayer(0, tilesetImage)
   
     let map = new CellMap({
       scene: this,
       tileSize: 32,
-      seed: 12345,
+      seed: 123456,
       preset: 'cave'
     })
 
     map.drawConsole()
-    map.drawPhaserTilemap(0, 'tilesCave')
+    map.drawPhaserTilemap({layerN: 0, tileset: 'tilesCave', collision: false})
   }
 
   setWallsDebug(debug) {
