@@ -179,7 +179,7 @@ export default class CellMap extends Map.Cellular {
     }
   }
 
-  drawPhaserTilemap({layerN, tileset, tilesetN = [0, 8, 13, 9, 12, 4, 1, 5, 15, 11, 14, 10, 3, 7, 2, 6], collision = false} = {}) {
+  drawPhaserTilemap({mapN, layerN, tileset, tilesetN = [0, 8, 13, 9, 12, 4, 1, 5, 15, 11, 14, 10, 3, 7, 2, 6], wallsGroup, collision = false} = {}) {
 
     const getNumbersMap = (tilesetN) => {
       let numbersMap = []
@@ -260,8 +260,11 @@ export default class CellMap extends Map.Cellular {
     let wallsTilemap = this._scene.make.tilemap({ data: numbersMap, tileWidth: this._tileSize, tileHeight: this._tileSize })
     let wallsTilesetImage = wallsTilemap.addTilesetImage(tileset)
     let wallsLayer = wallsTilemap.createLayer(layerN, wallsTilesetImage)
+    if (wallsGroup) {
+      this._scene[wallsGroup][mapN] = wallsLayer
+    }
     if (collision) {
-      this._scene.physics.add.collider(this._scene.levelPlayers['1'], wallsLayer)
+      this._scene.physics.add.collider(this._scene.mapPlayers[mapN], wallsLayer)
       wallsLayer.setCollision(tilesetN.slice(1, -1))
     }
   }

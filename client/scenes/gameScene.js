@@ -9,7 +9,7 @@ export default class GameScene extends Scene {
     super({ key: 'GameScene' })
     this.players = {}
     this.playerID
-    this.levelN = '1'
+    this.mapN = 'N1'
   }
 
   init({ channel }) {
@@ -26,34 +26,36 @@ export default class GameScene extends Scene {
     }
   }
 
-  setLevel(levelN) {
-    // this.level = this.make.tilemap({ key: 'level' + levelN })
-    // this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
+  setMap(mapN) {
+    this.map = this.make.tilemap({ key: 'map' + mapN })
+    this.tileset = this.map.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
 
-    // this.background = this.level.createLayer('Background', this.tileset)
-    // this.floor = this.level.createLayer('Floor', this.tileset)
-    // this.scenery = this.level.createLayer('Scenery', this.tileset).setDepth(100)
-    // this.doors = this.level.createLayer('Doors', this.tileset).setDepth(101)
-  
+    this.background = this.map.createLayer('Background', this.tileset)
+    this.floor = this.map.createLayer('Floor', this.tileset)
+    this.scenery = this.map.createLayer('Scenery', this.tileset).setDepth(100)
+    this.doors = this.map.createLayer('Doors', this.tileset).setDepth(101)
+  }
+
+  setRandomMap(mapN) {
     let map = new CellMap({
       scene: this,
       tileSize: 32,
-      seed: 123456,
+      seed: 12345678,
       preset: 'cave'
     })
 
     map.drawConsole()
-    map.drawPhaserTilemap({layerN: 0, tileset: 'tilesCave', collision: false})
+    map.drawPhaserTilemap({mapN: mapN, layerN: 0, tileset: 'tilesCave', collision: false})
   }
 
   setWallsDebug(debug) {
     if (debug) {
-      this.walls = this.level.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
+      this.walls = this.map.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
       this.wallsGroup = this.add.group()
   
       this.walls.forEach(wall => {
         wall.y = wall.y + wall.displayHeight
-        wall.setDepth(1000)
+        wall.setDepth(200)
         // wall.setAlpha(0)
 
         this.wallsGroup.add(wall)
@@ -61,26 +63,22 @@ export default class GameScene extends Scene {
     }
   }
 
-  setGroups() {
-    this.playersGroup = this.add.group()
-  }
-
   preload() {
+    this.load.spritesheet('player', 'assets/img/player/elfy.png', {frameWidth: 32, frameHeight: 32})
+    this.load.image('projectile', 'assets/img/objects/bullet7.png');
+
     this.load.image('ground', 'assets/img/objects/16x16_ground.png')
     this.load.image('tilesCave', 'assets/img/tilesets/wang_cave.png')
 
     this.load.image('tiles', 'assets/img/tilesets/tilesheet.png')
-		this.load.tilemapTiledJSON('level1', 'assets/levels/level1.json')
-    this.load.tilemapTiledJSON('level2', 'assets/levels/level2.json')
-
-    this.load.spritesheet('player', 'assets/img/player/elfy.png', {frameWidth: 32, frameHeight: 32})
+		this.load.tilemapTiledJSON('mapN1', 'assets/maps/map1.json')
+    this.load.tilemapTiledJSON('mapN2', 'assets/maps/map2.json')
   }
 
   async create() {
     new Cursors(this, this.channel)
 
-    this.setGroups()
-    this.setLevel('1')
+    this.setMap('N1')
     this.setWallsDebug(false)
 
     const parseUpdates = updates => {
@@ -93,13 +91,15 @@ export default class GameScene extends Scene {
       let u2 = []
 
       u.forEach((el, i) => {
-        if (i % 5 === 0) {
+        if (i % 7 === 0) {
           u2.push({
             playerID: u[i + 0],
             dead: parseInt(u[i + 1]) === 1 ? true : false,
-            levelN: u[i + 2],
-            x: parseInt(u[i + 3], 36),
-            y: parseInt(u[i + 4], 36)
+            mapN: u[i + 2],
+            projectileFired: parseInt(u[i + 3]),
+            projectileCollided: parseInt(u[i + 4]),
+            x: parseInt(u[i + 5], 36),
+            y: parseInt(u[i + 6], 36)
           })
         }
       })
@@ -107,72 +107,80 @@ export default class GameScene extends Scene {
     }
 
     const updatesHandler = playersUpdates => {
-
       playersUpdates.forEach(playerUpdate => {
-        if (this.playerID.toString() === playerUpdate.playerID) {
-          if (playerUpdate.levelN != this.levelN) {
-            this.levelN = playerUpdate.levelN
-
-            this.background.destroy()
-            this.floor.destroy()
-            this.scenery.destroy()
-            this.doors.destroy()
-
-            this.setLevel(this.levelN)
-            this.setWallsDebug(false)
-            
-            // Only show players from this level
-            Object.entries(this.players).forEach(([playerID, playerTarget]) => {
-              if (playerTarget.levelN != this.levelN) {
-                console.log('Remove player', playerID, 'from this level:', this.levelN)
-                playerTarget.setAlpha(0)
-                // this.playerRemove(player.playerID)
-              }
-              else {
-                console.log('Show player', playerID, 'from this level:', this.levelN)
-                playerTarget.setAlpha(1)                
-              }
-            })
+        console.log(this.playerID, 'player ID')
+        if (this.playerID  !== undefined ) {
+          if (this.playerID.toString() === playerUpdate.playerID) {
+            if (playerUpdate.mapN != this.mapN) {
+              this.mapN = playerUpdate.mapN
+  
+              this.background.destroy()
+              this.floor.destroy()
+              this.scenery.destroy()
+              this.doors.destroy()
+  
+              if (this.mapN.startsWith('N')) {
+                this.setMap(this.mapN),
+                this.setWallsDebug(false)}
+              else if (this.mapN.startsWith('R')) this.setRandomMap(this.mapN)
+  
+              // Only show players from this map
+              Object.entries(this.players).forEach(([playerID, playerTarget]) => {
+                if (playerTarget.mapN != this.mapN) {
+                  console.log('Remove player', playerID, 'from this map:', this.mapN)
+                  playerTarget.setAlpha(0)
+                  // this.playerRemove(player.playerID)
+                }
+                else {
+                  console.log('Show player', playerID, 'from this map:', this.mapN)
+                  playerTarget.setAlpha(1)                
+                }
+              })
+            }
           }
         }
       })
 
       playersUpdates.forEach(playerUpdate => {
-        const { playerID, dead, levelN, x, y } = playerUpdate
+        const { playerID, dead, mapN, projectileFired, projectileCollided, x, y } = playerUpdate
         const alpha = dead ? 0 : 1
-
-        console.log('Player update!', playerID)
 
         if (Object.keys(this.players).includes(playerID)) {
           let player = this.players[playerID]
-          if (levelN === this.levelN) {
+          if (mapN === this.mapN) {
             player.setAlpha(alpha)
           }
           else {
-            player.setAlpha(0)            
+            player.setAlpha(0)
           }
-          player.levelN = levelN
+          player.mapN = mapN
+
           player.animate(x, y)
           player.setPosition(x, y)
+
+          if (mapN === this.mapN && projectileFired > -1) player.projectiles.fireProjectile(projectileFired, player.setFireDir())
+          if (mapN === this.mapN && projectileCollided > -1) player.projectiles.collideProjectile(projectileCollided)
         }
         else {
-          console.log('New player!',  playerID)
+          console.log('New player! ID:',  playerID)
 
-          let newPlayer = new Player(this, playerID, levelN, x || 200, y || 200, 'player')
-          if (levelN === this.levelN) {
+          let newPlayer = new Player(this, playerID, mapN, 0, 0, 'player')
+          if (mapN === this.mapN) {
             newPlayer.setAlpha(alpha)
           }
           else {
-            newPlayer.setAlpha(0)            
+            newPlayer.setAlpha(0)
           }          
           newPlayer.setDepth(99) // !Revise
-          this.players = { ...this.players, [playerID]: newPlayer }
+          this.players = { ...this.players, [playerID]: newPlayer}
         }
       })
     }
 
     try {
       let res = await axios.get(`${location.protocol}//${location.hostname}:1444/getState`)
+
+      console.log('RES', res.data.state)
 
       let parsedUpdates = parseUpdates(res.data.state)
       updatesHandler(parsedUpdates)
@@ -191,7 +199,8 @@ export default class GameScene extends Scene {
         this.playerID = parseInt(playerID36, 36)
         this.channel.emit('playerAdd')
       })
-    } catch (error) {
+    } 
+    catch(error) {
       console.error(error.message)
     }
 

@@ -1,3 +1,5 @@
+import Projectiles from './projectiles.js'
+
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, playerID, x = 200, y = 200) {
     super(scene, x, y, '')
@@ -10,11 +12,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.dead = false
     this.prevDead = false
     
-    this.levelN = '1'
-    this.prevLevelN = '1'
+    this.mapN = 'N1'
+    this.prevMapN = 'N1'
+
+    this.projectiles = new Projectiles(this.scene, this)
+    this.projectileFired = -1
+    this.projectileCollided = -1
 
     this.move = {}
-  
+
     this.idle = true
     this.prevNoMovement = true
 
@@ -36,6 +42,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       none: data === 'none'
     }
     this.move = move
+  }
+
+  setFire() {
+    this.projectileFired = this.projectiles.fireProjectile(this.body.facing)
   }
 
   kill() {

@@ -1,13 +1,20 @@
 import Phaser from 'phaser'
+import Projectiles from './projectiles.js'
 
 export default class Player extends Phaser.GameObjects.Sprite {
-  constructor(scene, playerID, levelN, x, y, texture) {
+  constructor(scene, playerID, mapN, x, y, texture) {
     super(scene, x, y, texture)
     scene.add.existing(this)
 
     this.playerID = playerID
-    this.levelN = levelN
+    this.mapN = mapN
     this.texture = texture
+
+    this.facing = 'up'
+    this.fireDir = 'up'
+
+    this.projectiles = new Projectiles(this.scene, this)
+    this.projectiles.setDepth(200)
 
     this.setAnims()
   }
@@ -47,9 +54,16 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
   setFacing() {
     if (this.anims.currentAnim) {
-      const facing = this.anims.currentAnim.key;
-      this.setFrame(this.idleFrame[facing]);
+      this.facing = this.anims.currentAnim.key
+      this.setFrame(this.idleFrame[this.facing])
     }
+  }
+
+  setFireDir() {
+    if (this.anims.currentAnim) {
+      this.fireDir = this.anims.currentAnim.key
+    }
+    return this.fireDir
   }
 
   animate(x, y, idle) {

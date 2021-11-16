@@ -43,7 +43,7 @@ export class GameScene extends Phaser.Scene {
    * @return {string}
    */
   encodePlayerData(player) {
-    return `${player.playerID},${player.dead === true ? 1 : 0},${player.levelN},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},`
+    return `${player.playerID},${player.dead === true ? 1 : 0},${player.mapN},${player.projectileFired},${player.projectileCollided},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},`
   }
 
   /**
@@ -53,86 +53,102 @@ export class GameScene extends Phaser.Scene {
    */
   getState() {
     let state = ''
-    this.playersGroup.children.iterate(player => {
-      state += this.encodePlayerData(player)
+    Object.values(this.mapPlayers).forEach(players => {
+      players.children.iterate(player => {
+        if (player.active) state += this.encodePlayerData(player)        
+      })
     })
     return state
   }
 
   setGroups() {
-    this.playersGroup = this.add.group()
-    this.wallsGroup = this.add.group()
+    this.mapPlayers = {}
+    this.mapWalls = {}
+    this.mapWarps = {}
 
-    this.levelPlayers = {}
-    this.levelWalls = {}
-    this.levelWarps = {}
+    this.mapProjectileCollidersPlayers = {}
+    this.mapProjectileCollidersWalls = {}
   }
 
-  setLevel(levelN) {
-    // this.level = this.make.tilemap({ key: 'level' + levelN })
-    // this.tileset = this.level.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
+  setMap(mapN) {
+    const setWalls = mapN => {
+      this.mapWalls[mapN] = this.map.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
+      this.mapWalls[mapN].forEach(wall => {
+        this.add.existing(wall)
+        this.physics.add.existing(wall)
+  
+        wall.y = wall.y + wall.displayHeight
+        wall.body.setEnable()
+        wall.body.setImmovable()
+      })
+    }
+  
+    const setWarps = mapN => {
+      this.mapWarps[mapN] = this.map.createFromObjects('Warp', { classType: Phaser.Physics.Arcade.Sprite })
+      this.mapWarps[mapN].forEach(warp => {
+        this.add.existing(warp)
+        this.physics.add.existing(warp)
+  
+        warp.y = warp.y + warp.displayHeight
+        warp.body.setEnable()
+        warp.body.setImmovable()
+      })
+    }
 
-    // this.setWalls(levelN)
-    // this.setWarps(levelN)
-    // this.setCollisions(levelN)
+    const setCollisions = mapN => {
+      function collisionHandler(obj1, obj2) {
+        // console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
+      }
 
+      function projectileHandler(obj, projectile) {
+        projectile.collide()
+        console.log('Projectile collision, ID:', projectile.projectileID, projectile.active, Phaser.Math.RND.integerInRange(0, 100))
+      }
+  
+      function warpHandler(player, warp) {
+        let newMapN = warp.name
+        player.mapN = newMapN
+        console.log('Warp collision to map:', newMapN, Phaser.Math.RND.integerInRange(0, 100))
+      }
+  
+      this.physics.add.collider(this.mapPlayers[mapN])
+      this.physics.add.collider(this.mapPlayers[mapN], this.mapWalls[mapN], collisionHandler)
+      this.physics.add.collider(this.mapPlayers[mapN], this.mapWarps[mapN], warpHandler)
+
+      this.mapPlayers[mapN].children.iterate(player => {
+        this.mapProjectileCollidersPlayers[player.playerID] = this.physics.add.collider(this.mapPlayers[mapN], player.projectiles, projectileHandler)
+        this.mapProjectileCollidersWalls[player.playerID] = this.physics.add.collider(this.mapWalls[mapN], player.projectiles, projectileHandler)
+      })
+    }
+
+    this.map = this.make.tilemap({ key: 'map' + mapN })
+    this.tileset = this.map.addTilesetImage('tilesheet', 'tiles')  // embedded Tiled tilesheet
+
+    setWalls(mapN)
+    setWarps(mapN)
+    setCollisions(mapN)
+  }
+
+  setRandomMap(mapN) {
     let map = new CellMap({
       scene: this,
       tileSize: 32,
-      seed: 123456,
+      seed: 12345678,
       preset: 'cave'
     })
 
     map.drawConsole()
-    map.drawPhaserTilemap({layerN: 0, tileset: 'tilesCave', collision: true})
-  }
+    map.drawPhaserTilemap({mapN: mapN, layerN: 0, tileset: 'tilesCave', wallsGroup: 'mapWalls', collision: true})
 
-  setWalls(levelN) {
-    this.levelWalls[levelN] = this.level.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
-    this.levelWalls[levelN].forEach(wall => {
-      this.add.existing(wall)
-      this.physics.add.existing(wall)
-
-      wall.y = wall.y + wall.displayHeight
-      wall.body.setEnable()
-      wall.body.setImmovable()
-    })
-  }
-
-  setWarps(levelN) {
-    this.levelWarps[levelN] = this.level.createFromObjects('Warp', { classType: Phaser.Physics.Arcade.Sprite })
-    this.levelWarps[levelN].forEach(warp => {
-      this.add.existing(warp)
-      this.physics.add.existing(warp)
-
-      warp.y = warp.y + warp.displayHeight
-      warp.body.setEnable()
-      warp.body.setImmovable()
-    })
-  }
-
-  setCollisions(levelN) {
-    function collisionHandler (obj1, obj2) {
-      // console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
-    }
-
-    function warpHandler(player, warp) {
-      let newLevelN = warp.name
-      player.levelN = newLevelN
-      console.log('Warp collision to level:', newLevelN, Phaser.Math.RND.integerInRange(0, 100))
-    }
-
-    this.physics.add.collider(this.levelPlayers[levelN])
-    this.physics.add.collider(this.levelPlayers[levelN], this.levelWalls[levelN], collisionHandler)
-    this.physics.add.collider(this.levelPlayers[levelN], this.levelWarps[levelN], warpHandler)
+    this.physics.add.collider(this.mapPlayers[mapN])
   }
 
   preload() {
     this.load.image('tilesCave',  path.join(__dirname, '../../dist/assets/img/tilesets/wang_cave.png'))
 
     this.load.image('tiles', path.join(__dirname, '../../dist/assets/img/tilesets/tilesheet.png'))
-		this.load.tilemapTiledJSON('level1', path.join(__dirname, '../../dist/assets/levels/level1.json'))
-		this.load.tilemapTiledJSON('level2', path.join(__dirname, '../../dist/assets/levels/level2.json'))
+		this.load.tilemapTiledJSON('mapN1', path.join(__dirname, '../../dist/assets/maps/map1.json'))
+		this.load.tilemapTiledJSON('mapN2', path.join(__dirname, '../../dist/assets/maps/map2.json'))
 
     this.load.image('ball', path.join(__dirname, '../../dist/assets/img/objects/ball.png'))
   }
@@ -148,13 +164,20 @@ export class GameScene extends Phaser.Scene {
        */
       channel.onDisconnect(() => {
         console.log('Disconnect user ' + channel.id)
-        Object.entries(this.levelPlayers).forEach(([levelN, players]) => {
+        Object.entries(this.mapPlayers).forEach(([mapN, players]) => {
           players.children.iterate(player => {
             if (player.playerID === channel.playerID) {
               player.kill()
             }
           })
         })
+
+        this.mapProjectileCollidersPlayers[channel.playerID].destroy()
+        delete this.mapProjectileCollidersPlayers[channel.playerID]
+
+        this.mapProjectileCollidersWalls[channel.playerID].destroy()
+        delete this.mapProjectileCollidersWalls[channel.playerID]
+
         channel.room.emit('playerRemove', channel.playerID)
       })
 
@@ -175,12 +198,12 @@ export class GameScene extends Phaser.Scene {
        */
       channel.on('playerAdd', data => {
 
-        let levelN = '1'
-        if (!Object.keys(this.levelPlayers).includes(levelN)) {
-          this.levelPlayers[levelN] = this.add.group()
+        let mapN = 'N1'
+        if (!Object.keys(this.mapPlayers).includes(mapN)) {
+          this.mapPlayers[mapN] = this.add.group()
         }
         let dead
-        Object.values(this.levelPlayers).forEach(players => {
+        Object.values(this.mapPlayers).forEach(players => {
           dead = players.getFirstDead()
         })
 
@@ -188,12 +211,13 @@ export class GameScene extends Phaser.Scene {
           dead.revive(channel.playerID, false)
         }
         else {
-          let playerNew = new Player(this, channel.playerID, Phaser.Math.RND.integerInRange(100, 700))
-          playerNew.levelN = '1'
-          this.levelPlayers[levelN].add(playerNew)
+          let playerNew = new Player(this, channel.playerID, 0, 0)
+          playerNew.mapN = 'N1'
+          this.mapPlayers[mapN].add(playerNew)
         }
         this.playerSpawned = true
-        this.setLevel(levelN)
+        if (mapN.startsWith('N')) this.setMap(mapN)
+        else if (mapN.startsWith('R')) this.setRandomMap(mapN)
       })
 
       /**
@@ -202,10 +226,25 @@ export class GameScene extends Phaser.Scene {
        * Server: sets new move
        */
       channel.on('playerMove', data => {
-        Object.entries(this.levelPlayers).forEach(([levelN, players])=> {
+        Object.entries(this.mapPlayers).forEach(([mapN, players])=> {
           players.children.iterate(player => {
             if (player.playerID === channel.playerID) {
               player.setMove(data)
+            }
+          })
+        })
+      })
+
+      /**
+       * Client [request]: update player's fire state
+       * 
+       * Server: sets new projectiles
+       */
+       channel.on('playerFire', () => {
+        Object.entries(this.mapPlayers).forEach(([mapN, players])=> {
+          players.children.iterate(player => {
+            if (player.playerID === channel.playerID) {
+              player.setFire()
             }
           })
         })
@@ -218,19 +257,23 @@ export class GameScene extends Phaser.Scene {
   update() {
     let playersUpdates = ''
     let playersWarped = []
-    Object.entries(this.levelPlayers).forEach(([levelN, players]) => {
+    Object.entries(this.mapPlayers).forEach(([mapN, players]) => {
       players.children.iterate(player => {
         let playerUpdate
         // Check if there has been any change in selected player attributes
         let dead = player.dead != player.prevDead
-        let warped = player.levelN != player.prevLevelN
+        let warped = player.mapN != player.prevMapN
+        let projectileFired = player.projectileFired > -1
+        let projectileCollided = player.projectileCollided > -1
         let x = Math.abs(player.x - player.prevX) > 0.5
         let y = Math.abs(player.y - player.prevY) > 0.5
         // Save all players that need an update
-        if (this.playerSpawned || dead || warped || x || y) {
+        if (this.playerSpawned || dead || warped || projectileFired || projectileCollided || x || y) {
           if (dead || !player.dead) {
             player.idle = false
             playerUpdate = this.encodePlayerData(player)
+            if (projectileFired) player.projectileFired = -1
+            if (projectileCollided) player.projectileCollided = -1            
           }
         }
         else if (!player.idle) {
@@ -251,15 +294,54 @@ export class GameScene extends Phaser.Scene {
 
     if (playersWarped.length > 0) {
       playersWarped.forEach(player => {
-        let prevLevelN = player.prevLevelN
-        let levelN = player.levelN
-        if (!Object.keys(this.levelPlayers).includes(levelN)) {
-          this.levelPlayers[levelN] = this.add.group()
+        let prevMapN = player.prevMapN
+        let mapN = player.mapN
+        if (!Object.keys(this.mapPlayers).includes(mapN)) {
+          this.mapPlayers[mapN] = this.add.group()
         }
-        player.prevLevelN = player.levelN
-        this.levelPlayers[prevLevelN].remove(player)
-        this.levelPlayers[levelN].add(player)
-        this.setLevel(levelN)
+        player.prevMapN = player.mapN
+        this.mapPlayers[prevMapN].remove(player)
+        this.mapPlayers[mapN].add(player)
+
+        this.mapProjectileCollidersPlayers[player.playerID].destroy()
+        delete this.mapProjectileCollidersPlayers[player.playerID]
+
+        this.mapProjectileCollidersWalls[player.playerID].destroy()
+        delete this.mapProjectileCollidersWalls[player.playerID]
+
+        if (mapN.startsWith('N')) {
+          this.setMap(mapN)
+          this.mapWarps[mapN].forEach(warp => {
+            if (warp.name === prevMapN) {
+              let x
+              let y
+              switch (player.body.facing) {
+                // Up
+                case 11:
+                  x = warp.x
+                  y = warp.y - 32
+                  break;
+                // Down
+                case 12:
+                  x = warp.x
+                  y = warp.y + 32
+                  break;
+                // Left
+                case 13:
+                  x = warp.x
+                  y = warp.y - 50
+                  break;
+                // Right
+                case 14:
+                  x = warp.x
+                  y = warp.y - 50
+                  break;              
+              }
+              player.setPosition(x, y)
+            }
+          })
+        }
+        else if (mapN.startsWith('R')) this.setRandomMap(mapN)
       })
     }
 
