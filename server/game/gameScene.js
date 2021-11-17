@@ -43,7 +43,7 @@ export class GameScene extends Phaser.Scene {
    * @return {string}
    */
   encodePlayerData(player) {
-    return `${player.playerID},${player.dead === true ? 1 : 0},${player.mapN},${player.projectileFired},${player.projectileCollided},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},`
+    return `${player.playerID},${player.dead === true ? 1 : 0},${player.mapN},${player.damaged === true ? 1 : 0},${player.projectileFired},${player.projectileCollided},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},`
   }
 
   /**
@@ -100,9 +100,13 @@ export class GameScene extends Phaser.Scene {
         // console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
       }
 
-      function projectileHandler(obj, projectile) {
+      function projectilePlayerHandler(player, projectile) {
+        player.damaged = true
         projectile.collide()
-        console.log('Projectile collision, ID:', projectile.projectileID, projectile.active, Phaser.Math.RND.integerInRange(0, 100))
+      }
+
+      function projectileWallHandler(wall, projectile) {
+        projectile.collide()
       }
   
       function warpHandler(player, warp) {
@@ -116,8 +120,8 @@ export class GameScene extends Phaser.Scene {
       this.physics.add.collider(this.mapPlayers[mapN], this.mapWarps[mapN], warpHandler)
 
       this.mapPlayers[mapN].children.iterate(player => {
-        this.mapProjectileCollidersPlayers[player.playerID] = this.physics.add.collider(this.mapPlayers[mapN], player.projectiles, projectileHandler)
-        this.mapProjectileCollidersWalls[player.playerID] = this.physics.add.collider(this.mapWalls[mapN], player.projectiles, projectileHandler)
+        this.mapProjectileCollidersPlayers[player.playerID] = this.physics.add.collider(this.mapPlayers[mapN], player.projectiles, projectilePlayerHandler)
+        this.mapProjectileCollidersWalls[player.playerID] = this.physics.add.collider(this.mapWalls[mapN], player.projectiles, projectileWallHandler)
       })
     }
 
@@ -154,6 +158,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // LIMIT FPS
+    this.physics.world.setFPS(60)
+
     this.setGroups()
 
     this.io.onConnection(channel => {
@@ -263,22 +270,27 @@ export class GameScene extends Phaser.Scene {
         // Check if there has been any change in selected player attributes
         let dead = player.dead != player.prevDead
         let warped = player.mapN != player.prevMapN
+        let damaged = player.damaged
         let projectileFired = player.projectileFired > -1
         let projectileCollided = player.projectileCollided > -1
+        // let projectileCollided = parseInt(player.projectileCollided.split('|')[0]) > -1
         let x = Math.abs(player.x - player.prevX) > 0.5
         let y = Math.abs(player.y - player.prevY) > 0.5
         // Save all players that need an update
-        if (this.playerSpawned || dead || warped || projectileFired || projectileCollided || x || y) {
+        if (this.playerSpawned || dead || warped || damaged || projectileFired || projectileCollided || x || y) {
           if (dead || !player.dead) {
-            player.idle = false
             playerUpdate = this.encodePlayerData(player)
-            if (projectileFired) player.projectileFired = -1
-            if (projectileCollided) player.projectileCollided = -1            
+            
+            player.idle = false
+            player.damaged = false
+            player.projectileFired = -1
+            player.projectileCollided = -1
+            // player.projectileCollided = '-1'
           }
         }
         else if (!player.idle) {
-          player.idle = true
           playerUpdate = this.encodePlayerData(player)
+          player.idle = true
         }
         if (playerUpdate) {
           playersUpdates += playerUpdate

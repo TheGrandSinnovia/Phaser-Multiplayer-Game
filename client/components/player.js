@@ -6,9 +6,13 @@ export default class Player extends Phaser.GameObjects.Sprite {
     super(scene, x, y, texture)
     scene.add.existing(this)
 
+    this.texture = texture
+
     this.playerID = playerID
     this.mapN = mapN
-    this.texture = texture
+
+    this.damaged = false
+    this.damagedTick
 
     this.facing = 'up'
     this.fireDir = 'up'
@@ -93,6 +97,37 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
     if (anim) {
       this.anims.play(anim, true);            
+    }
+  }
+
+  getDamage() {
+    // const getTime = () => {
+    //   return new Date().getTime()
+    // }
+
+    // let start = getTime()
+    // this.setTint(0x5564eb)
+
+    // while (getTime() - start < 1000) {
+    // }
+
+    // this.clearTint()
+  }
+
+  preUpdate(time, delta) {
+    super.preUpdate(time, delta)
+
+    if (this.damaged) {
+      this.setTint(0xFF0000)
+      this.damagedTick = time
+      this.damaged = false
+    }
+
+    if (this.damagedTick) {
+      if (time - this.damagedTick > 100) {
+        this.clearTint()
+        this.damagedTick = null
+      }
     }
   }
 }

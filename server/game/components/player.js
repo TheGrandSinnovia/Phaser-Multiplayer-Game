@@ -15,9 +15,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.mapN = 'N1'
     this.prevMapN = 'N1'
 
+    this.damaged = false
+
     this.projectiles = new Projectiles(this.scene, this)
     this.projectileFired = -1
     this.projectileCollided = -1
+    // this.projectileCollided = '-1'
 
     this.move = {}
 

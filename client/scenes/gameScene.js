@@ -76,6 +76,9 @@ export default class GameScene extends Scene {
   }
 
   async create() {
+    // LIMIT FPS
+    this.physics.world.setFPS(60)
+
     new Cursors(this, this.channel)
 
     this.setMap('N1')
@@ -84,6 +87,16 @@ export default class GameScene extends Scene {
     const parseUpdates = updates => {
       if (typeof updates === undefined || updates === '') return []
 
+      // const parseCollided = data => {
+      //   data = data.split('|')
+      //   data[0] = parseInt(data[0])
+      //   if (data.length > 1) {
+      //     data[1] = parseInt(data[1], 36)
+      //     data[2] = parseInt(data[2], 36)          
+      //   }
+      //   return data
+      // }
+
       // parse
       let u = updates.split(',')
       u.pop() // delete last empty string
@@ -91,15 +104,17 @@ export default class GameScene extends Scene {
       let u2 = []
 
       u.forEach((el, i) => {
-        if (i % 7 === 0) {
+        if (i % 8 === 0) {
           u2.push({
             playerID: u[i + 0],
             dead: parseInt(u[i + 1]) === 1 ? true : false,
             mapN: u[i + 2],
-            projectileFired: parseInt(u[i + 3]),
-            projectileCollided: parseInt(u[i + 4]),
-            x: parseInt(u[i + 5], 36),
-            y: parseInt(u[i + 6], 36)
+            damaged: parseInt(u[i + 3]) === 1 ? true : false,
+            projectileFired: parseInt(u[i + 4]),
+            projectileCollided: parseInt(u[i + 5]),
+            // projectileCollided: parseCollided(u[i + 4]),
+            x: parseInt(u[i + 6], 36),
+            y: parseInt(u[i + 7], 36)
           })
         }
       })
@@ -108,7 +123,6 @@ export default class GameScene extends Scene {
 
     const updatesHandler = playersUpdates => {
       playersUpdates.forEach(playerUpdate => {
-        console.log(this.playerID, 'player ID')
         if (this.playerID  !== undefined ) {
           if (this.playerID.toString() === playerUpdate.playerID) {
             if (playerUpdate.mapN != this.mapN) {
@@ -142,7 +156,7 @@ export default class GameScene extends Scene {
       })
 
       playersUpdates.forEach(playerUpdate => {
-        const { playerID, dead, mapN, projectileFired, projectileCollided, x, y } = playerUpdate
+        const { playerID, dead, mapN, damaged, projectileFired, projectileCollided, x, y } = playerUpdate
         const alpha = dead ? 0 : 1
 
         if (Object.keys(this.players).includes(playerID)) {
@@ -158,11 +172,13 @@ export default class GameScene extends Scene {
           player.animate(x, y)
           player.setPosition(x, y)
 
+          if (mapN === this.mapN && damaged) player.damaged = true
           if (mapN === this.mapN && projectileFired > -1) player.projectiles.fireProjectile(projectileFired, player.setFireDir())
           if (mapN === this.mapN && projectileCollided > -1) player.projectiles.collideProjectile(projectileCollided)
+          // if (mapN === this.mapN && projectileCollided[0] > -1) player.projectiles.collideProjectile(projectileCollided)
         }
         else {
-          console.log('New player! ID:',  playerID)
+          console.log('New player! ID:', playerID, playerUpdate)
 
           let newPlayer = new Player(this, playerID, mapN, 0, 0, 'player')
           if (mapN === this.mapN) {
@@ -179,8 +195,6 @@ export default class GameScene extends Scene {
 
     try {
       let res = await axios.get(`${location.protocol}//${location.hostname}:1444/getState`)
-
-      console.log('RES', res.data.state)
 
       let parsedUpdates = parseUpdates(res.data.state)
       updatesHandler(parsedUpdates)

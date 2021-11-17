@@ -6,6 +6,10 @@ class Projectile extends Phaser.Physics.Arcade.Sprite {
     this.player
     this.projectileID
 
+    this.moving = false
+    this.fireX
+    this.fireY
+
     this.speed = 320
     this.range = 320
   }
@@ -13,10 +17,19 @@ class Projectile extends Phaser.Physics.Arcade.Sprite {
   collide() {
     this.setActive(false)
     this.body.setEnable(false)
+
+    this.moving = false
+
     this.player.projectileCollided = this.projectileID
+    // this.player.projectileCollided = `${this.projectileID}|${Math.round(this.x).toString(36)}|${Math.round(this.y).toString(36)}`
   }
 
   fire(direction) {
+    this.fireX = this.player.x
+    this.fireY = this.player.y
+
+    if (this.moving) return
+
     let offset = 32
     switch (direction) {
       case 11:
@@ -43,12 +56,17 @@ class Projectile extends Phaser.Physics.Arcade.Sprite {
 
   preUpdate(time, delta) {
     super.preUpdate(time, delta)
-    let distanceX = this.x - this.player.x
-    let distanceY = this.y - this.player.y
+    let distanceX = this.x - this.fireX
+    let distanceY = this.y - this.fireY
 
     if (distanceY <= -this.range || distanceY >= this.range || distanceX <= -this.range || distanceX >= this.range) {
       this.setActive(false)
       this.body.setEnable(false)
+
+      this.moving = false
+
+      this.fireX = null
+      this.fireY = null
     }
   }
 }
@@ -59,9 +77,13 @@ export default class Projectiles extends Phaser.Physics.Arcade.Group {
     this.player = player
 
     this.projectileID = 0
+    this.projectileTick  // ms
+
+    this.fireRate = 250  // ms
+    this.ammunition = 10
 
     this.createMultiple({
-      frameQuantity: 20,
+      frameQuantity: this.ammunition,
       key: 'DUMMY',
       active: false,
       visible: false,
@@ -73,11 +95,18 @@ export default class Projectiles extends Phaser.Physics.Arcade.Group {
     })
   }
 
+  getTime() {
+    return new Date().getTime()
+  }
+
   setProjectileID() {
     return this.projectileID++
   }
 
   fireProjectile(direction) {
+    if (this.getTime() - this.projectileTick < this.fireRate) return
+
+    this.projectileTick = this.getTime()
     let projectile = this.getFirstDead(false)
 
     if (projectile) {
