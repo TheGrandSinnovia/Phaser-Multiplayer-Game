@@ -1,5 +1,8 @@
+import { SnapshotInterpolation, Vault } from '@geckos.io/snapshot-interpolation'
+
 import { Scene } from 'phaser'
 import axios from 'axios'
+import { addLatencyAndPackagesLoss, collisionDetection } from '../../common'
 import Player from '../components/player'
 import Cursors from '../components/cursors'
 import CellMap from '../components/cellMap'
@@ -14,6 +17,11 @@ export default class GameScene extends Scene {
 
   init({ channel }) {
     this.channel = channel
+
+    const serverFPS = 15
+    this.SI = new SnapshotInterpolation(serverFPS)
+    this.playerVault = new Vault()
+    this.snapshot
   }
 
   playerRemove(playerID) {
@@ -34,6 +42,12 @@ export default class GameScene extends Scene {
     this.floor = this.map.createLayer('Floor', this.tileset)
     this.scenery = this.map.createLayer('Scenery', this.tileset).setDepth(100)
     this.doors = this.map.createLayer('Doors', this.tileset).setDepth(101)
+
+    this.latencyText = this.add.text(16, 12, '', {
+      color: '#fff',
+      fontSize: 14,
+      fontFamily: 'Arial'
+    })    
   }
 
   setRandomMap(mapN) {
@@ -76,9 +90,6 @@ export default class GameScene extends Scene {
   }
 
   async create() {
-    // LIMIT FPS
-    this.physics.world.setFPS(60)
-
     new Cursors(this, this.channel)
 
     this.setMap('N1')
@@ -122,6 +133,7 @@ export default class GameScene extends Scene {
     }
 
     const updatesHandler = playersUpdates => {
+
       playersUpdates.forEach(playerUpdate => {
         if (this.playerID  !== undefined ) {
           if (this.playerID.toString() === playerUpdate.playerID) {
@@ -169,8 +181,25 @@ export default class GameScene extends Scene {
           }
           player.mapN = mapN
 
-          player.animate(x, y)
-          player.setPosition(x, y)
+          let snapshotPosition = false
+        
+          this.snapshot = this.SI.calcInterpolation('x y')
+          if (this.snapshot) {
+            const { state } = this.snapshot
+            state.forEach(st => {
+              const { id, x, y } = st
+              if (parseInt(playerID) === id) {
+                player.animate(x, y)
+                player.setPosition(x, y)
+                snapshotPosition = true
+              }
+            })
+          }
+
+          if (!snapshotPosition) {
+            player.animate(x, y)
+            player.setPosition(x, y)
+          }
 
           if (mapN === this.mapN && damaged) player.damaged = true
           if (mapN === this.mapN && projectileFired > -1) player.projectiles.fireProjectile(projectileFired, player.setFireDir())
@@ -197,7 +226,7 @@ export default class GameScene extends Scene {
       let res = await axios.get(`${location.protocol}//${location.hostname}:1444/getState`)
 
       let parsedUpdates = parseUpdates(res.data.state)
-      updatesHandler(parsedUpdates)
+      // updatesHandler(parsedUpdates)
 
       /**
        * Client [request]: new ID for connected player
@@ -223,18 +252,62 @@ export default class GameScene extends Scene {
      * 
      * Client: updates players
      */
-     this.channel.on('playersUpdate', playerUpdates => {
-      let parsedUpdates = parseUpdates(playerUpdates[0])
-      updatesHandler(parsedUpdates)
-    })
+    // this.channel.on('playersUpdate', playerUpdates => {
+    //   addLatencyAndPackagesLoss(() => {
+    //     this.channel.emit('pong', playerUpdates[0])      
+    //     let parsedUpdates = parseUpdates(playerUpdates[1])
+    //     updatesHandler(parsedUpdates)
+    //   })
+    // })
 
     /**
      * Server [request]: delete player
      * 
      * Client: deletes player
      */
-     this.channel.on('playerRemove', playerID => {
+    this.channel.on('playerRemove', playerID => {
       this.playerRemove(playerID)
     })
+
+    /**
+     * Server [request]: update snapshot
+     * 
+     * Client: updates snapshot
+     */
+    this.channel.on('snapshotUpdate', snapshot => {
+      addLatencyAndPackagesLoss(() => {
+        this.channel.emit('pong', snapshot[0])
+        this.SI.snapshot.add(snapshot[1])
+        // snapshotUpdate()
+      })
+    })
+
+    this.channel.on('latency', latency => {
+      this.latencyText.setText(`Latency (ms): ${latency.toFixed(2).toString()}`)
+    })
+  }
+
+  update(time, delta) {
+    const snapshotUpdate = () => {
+      this.snapshot = this.SI.calcInterpolation('x y')
+      // this.snapshot = this.SI.vault.get()
+      if (this.snapshot) {
+        const { state } = this.snapshot
+        state.forEach(st => {
+          const { id, x, y } = st
+          if (Object.keys(this.players).includes(id.toString())) {
+            let player = this.players[id.toString()]
+            player.animate(x, y)
+            player.setPosition(x, y)
+          }
+          else {
+            let newPlayer = new Player(this, id.toString(), 'N1', x, y, 'player')
+            newPlayer.setDepth(99) // !Revise
+            this.players = { ...this.players, [id.toString()]: newPlayer}
+          }
+        })
+      }
+    }
+    snapshotUpdate()
   }
 }

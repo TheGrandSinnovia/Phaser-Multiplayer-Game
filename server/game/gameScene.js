@@ -8,9 +8,14 @@ const __dirname = dirname(__filename)
 import geckos from '@geckos.io/server'
 import { iceServers } from '@geckos.io/server'
 
+import { SnapshotInterpolation } from '@geckos.io/snapshot-interpolation'
+
 import pkg from 'phaser'
 const { Scene } = pkg
 
+import quickselect from 'quickselect'
+
+import { addLatencyAndPackagesLoss, collisionDetection } from '../../common.js'
 import Player from './components/player.js'
 import CellMap from './components/cellMap.js'
 
@@ -26,6 +31,14 @@ export class GameScene extends Phaser.Scene {
       iceServers: process.env.NODE_ENV === 'production' ? iceServers : []
     })
     this.io.addServer(this.game.server)
+
+    const serverFPS = 60
+    this.physics.world.setFPS(serverFPS)  // Only for physics simulation
+    this.SI = new SnapshotInterpolation()
+  }
+
+  getShortStamp() {
+    return parseInt(Date.now().toString().substr(-9))
   }
 
   /**
@@ -43,22 +56,33 @@ export class GameScene extends Phaser.Scene {
    * @return {string}
    */
   encodePlayerData(player) {
-    return `${player.playerID},${player.dead === true ? 1 : 0},${player.mapN},${player.damaged === true ? 1 : 0},${player.projectileFired},${player.projectileCollided},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},`
+    
+    return `${player.playerID},${player.dead === true ? 1 : 0},${player.mapN},${player.damaged === true ? 1 : 0},${
+      player.projectileFired},${player.projectileCollided},${Math.round(player.x).toString(36)},${Math.round(player.y).toString(36)},`
   }
 
   /**
-   * Makes string cotaining all players' info
+   * Makes string or array containing all players' info
    * 
    * @return {string} All players info concatenated
    */
-  getState() {
-    let state = ''
+  getState(format) {
+    let stateString = ''
+    let stateArray = []
     Object.values(this.mapPlayers).forEach(players => {
       players.children.iterate(player => {
-        if (player.active) state += this.encodePlayerData(player)        
+        if (player.active) {
+          stateString += this.encodePlayerData(player)
+          stateArray.push({
+            id: player.playerID,
+            x: player.x,
+            y: player.y
+          })
+        }
       })
     })
-    return state
+    if (format === 'string') return stateString
+    else if (format === 'array') return stateArray
   }
 
   setGroups() {
@@ -158,12 +182,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // LIMIT FPS
-    this.physics.world.setFPS(60)
-
     this.setGroups()
 
     this.io.onConnection(channel => {
+      channel.latency = 0
+      channel.latencies = []
+  
+      channel.on('pong', timeStamp => {
+        addLatencyAndPackagesLoss(() => {
+          const quickMedian = arr => {
+            var  l = arr.length
+            var n = (l%2 == 0 ? (l/2)-1 : (l-1)/2)
+            quickselect(arr,n)
+            return arr[n]
+          }
+  
+          let latency = (this.getShortStamp() - timeStamp) / 2
+          if (latency < 0) latency = 0
+          channel.latencies.push(latency)
+          if(channel.latencies.length > 20) channel.latencies.shift()
+          channel.latency = quickMedian(channel.latencies.slice(0))
+  
+          channel.emit('latency', channel.latency)
+        })
+      })
+
       /**
        * Client: user disconnects
        * 
@@ -233,11 +276,13 @@ export class GameScene extends Phaser.Scene {
        * Server: sets new move
        */
       channel.on('playerMove', data => {
-        Object.entries(this.mapPlayers).forEach(([mapN, players])=> {
-          players.children.iterate(player => {
-            if (player.playerID === channel.playerID) {
-              player.setMove(data)
-            }
+        addLatencyAndPackagesLoss(() => {
+          Object.entries(this.mapPlayers).forEach(([mapN, players])=> {
+            players.children.iterate(player => {
+              if (player.playerID === channel.playerID) {
+                player.setMove(data)
+              }
+            })
           })
         })
       })
@@ -261,7 +306,19 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
-  update() {
+  update(time, delta) {
+    const loop = this.sys.game.loop
+    const frame = loop.frame
+
+    // Send snapshot at 15 fps
+    if (frame % 4 === 0) {
+      let timeStamp = this.getShortStamp()
+      let snapshot = this.SI.snapshot.create(this.getState('array'))
+      this.SI.vault.add(snapshot)
+    
+      this.io.room().emit('snapshotUpdate', [timeStamp, snapshot])
+    }
+
     let playersUpdates = ''
     let playersWarped = []
     Object.entries(this.mapPlayers).forEach(([mapN, players]) => {
@@ -358,11 +415,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (playersUpdates.length > 0) {
+      let timeStamp = this.getShortStamp()
+
       this.playerSpawned = false
+
       /**
        * Server [request]: update players
        */
-      this.io.room().emit('playersUpdate', [playersUpdates])
+      this.io.room().emit('playersUpdate', [timeStamp, playersUpdates])
     }
   }
 }

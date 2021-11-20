@@ -3,6 +3,9 @@ import '@geckos.io/phaser-on-nodejs'
 import Phaser from 'phaser'
 import { GameScene } from './gameScene.js'
 
+const FPS = 60 // default
+global.phaserOnNodeFPS = FPS
+
 export const config = {
   type: Phaser.HEADLESS,
   parent: 'phaser-game',
@@ -16,5 +19,8 @@ export const config = {
     arcade: {
       gravity: { y: 0 }
     }
+  },
+  fps: {
+    target: FPS,
   }
 }

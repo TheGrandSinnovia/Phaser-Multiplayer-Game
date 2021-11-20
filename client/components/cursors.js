@@ -19,7 +19,11 @@ export default class Cursors {
   }
 
   update() {
-    const move = () => {
+
+  }
+
+  update() {
+    const move = (clientPrediction = false) => {
       let move = {
         up: false,
         down: false,
@@ -52,7 +56,24 @@ export default class Cursors {
         else if (move.left) data = 'left'
         else if (move.right) data = 'right'
         else data = 'none'
-  
+
+        if (clientPrediction) {
+          let speed = 160
+
+          // If there is a move state, move player
+          if (move.up) this.setVelocity(0, -speed)
+          else if (move.down) this.setVelocity(0, speed)
+          else if (move.left) this.setVelocity(-speed, 0)
+          else if (move.right) this.setVelocity(speed, 0)
+          else setVelocity(0, 0)
+
+          let player = this.scene.players[this.scene.playerID]
+
+          this.scene.playerVault.add(
+            this.scene.SI.snapshot.create([{ id: this.scene.playerID, x: player.x, y: player.y }])
+          )
+        }
+
         /**
          * Client request: update player's move state
          */
