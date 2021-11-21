@@ -15,7 +15,7 @@ const { Scene } = pkg
 
 import quickselect from 'quickselect'
 
-import { addLatencyAndPackagesLoss, collisionDetection } from '../../common.js'
+import { addLatencyAndPackagesLoss } from '../../common.js'
 import Player from './components/player.js'
 import CellMap from './components/cellMap.js'
 

@@ -19,71 +19,39 @@ export default class Cursors {
   }
 
   update() {
-
-  }
-
-  update() {
-    const move = (clientPrediction = false) => {
+    const sendMove = () => {
       let move = {
         up: false,
         down: false,
         left: false,
         right: false,
-        none: true
       }
   
       if (this.keys.up.isDown || this.keys.w.isDown) {
         move.up = true
-        move.none = false
       } 
       else if (this.keys.down.isDown || this.keys.s.isDown) {
         move.down = true
-        move.none = false
       }
       else if (this.keys.left.isDown || this.keys.a.isDown) {
         move.left = true
-        move.none = false
       } 
       else if (this.keys.right.isDown || this.keys.d.isDown) {
         move.right = true
-        move.none = false
       }
+
+      const player = this.scene.players[this.scene.playerID]
+
+      if (player) player.move = move
   
-      if (move.up || move.down || move.left || move.right || move.none !== this.prevNoMovement) {
-        let data
-        if (move.up) data = 'up'
-        else if (move.down) data = 'down'
-        else if (move.left) data = 'left'
-        else if (move.right) data = 'right'
-        else data = 'none'
-
-        if (clientPrediction) {
-          let speed = 160
-
-          // If there is a move state, move player
-          if (move.up) this.setVelocity(0, -speed)
-          else if (move.down) this.setVelocity(0, speed)
-          else if (move.left) this.setVelocity(-speed, 0)
-          else if (move.right) this.setVelocity(speed, 0)
-          else setVelocity(0, 0)
-
-          let player = this.scene.players[this.scene.playerID]
-
-          this.scene.playerVault.add(
-            this.scene.SI.snapshot.create([{ id: this.scene.playerID, x: player.x, y: player.y }])
-          )
-        }
-
-        /**
-         * Client request: update player's move state
-         */
+      let data = [move.up, move.down, move.left, move.right]
+      /**
+       * Client request: update player's move state
+       */
         this.channel.emit('playerMove', data)
-      }
-  
-      this.prevNoMovement = move.none
     }
 
-    const fire = () => {
+    const sendFire = () => {
       let pointer = this.scene.input.activePointer
       if (pointer.isDown) {
         // To send request only on first click
@@ -97,7 +65,7 @@ export default class Cursors {
       }
     }
 
-    move()
-    fire()
+    sendMove()
+    // sendFire()
   }
 }

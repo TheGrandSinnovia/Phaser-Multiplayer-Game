@@ -24,6 +24,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.move = {}
 
+    this.vx
+    this.vy
+
     this.idle = true
     this.prevNoMovement = true
 
@@ -37,14 +40,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   setMove(data) {
-    let move = {
-      up: data === 'up',
-      down: data === 'down',
-      left: data === 'left',
-      right: data === 'right',
-      none: data === 'none'
-    }
-    this.move = move
+    // let move = {
+    //   up: data === 'up',
+    //   down: data === 'down',
+    //   left: data === 'left',
+    //   right: data === 'right',
+    //   none: data === 'none'
+    // }
+    // this.move = move
+
+    this.vx = data[3] - data[2]
+    this.vy = data[1] - data[0]
   }
 
   setFire() {
@@ -66,14 +72,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   update() {
-    let speed = 160
+    let speed = 3
 
     // If there is a move state, move player
-    if (this.move.up) this.setVelocity(0, -speed)
-    else if (this.move.down) this.setVelocity(0, speed)
-    else if (this.move.left) this.setVelocity(-speed, 0)
-    else if (this.move.right) this.setVelocity(speed, 0)
-    else this.setVelocity(0, 0)
+    // if (this.move.up) this.y -= speed
+    // else if (this.move.down) this.y += speed
+    // else if (this.move.left) this.x -= speed
+    // else if (this.move.right) this.x += speed
+
+    if (this.vx) this.x += this.vx * speed
+    if (this.vy) this.y += this.vy * speed    
+
   }
 
   postUpdate() {

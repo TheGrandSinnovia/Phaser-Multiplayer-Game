@@ -1,5 +1,3 @@
-//// <reference path="../phaser.d.ts" />
-
 import 'core-js/stable'
 
 import Phaser, { Game } from 'phaser'

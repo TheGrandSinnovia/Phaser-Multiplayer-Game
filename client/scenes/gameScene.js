@@ -2,7 +2,7 @@ import { SnapshotInterpolation, Vault } from '@geckos.io/snapshot-interpolation'
 
 import { Scene } from 'phaser'
 import axios from 'axios'
-import { addLatencyAndPackagesLoss, collisionDetection } from '../../common'
+import { addLatencyAndPackagesLoss } from '../../common'
 import Player from '../components/player'
 import Cursors from '../components/cursors'
 import CellMap from '../components/cellMap'
@@ -18,8 +18,8 @@ export default class GameScene extends Scene {
   init({ channel }) {
     this.channel = channel
 
-    const serverFPS = 15
-    this.SI = new SnapshotInterpolation(serverFPS)
+    const snapshotRate = 15 // fps
+    this.SI = new SnapshotInterpolation(snapshotRate)
     this.playerVault = new Vault()
     this.snapshot
   }
@@ -47,7 +47,13 @@ export default class GameScene extends Scene {
       color: '#fff',
       fontSize: 14,
       fontFamily: 'Arial'
-    })    
+    })
+
+    this.fpsText = this.add.text(16, 30, '', {
+      color: '#fff',
+      fontSize: 14,
+      fontFamily: 'Arial'
+    })      
   }
 
   setRandomMap(mapN) {
@@ -90,7 +96,7 @@ export default class GameScene extends Scene {
   }
 
   async create() {
-    new Cursors(this, this.channel)
+    this.cursors = new Cursors(this, this.channel)
 
     this.setMap('N1')
     this.setWallsDebug(false)
@@ -181,25 +187,8 @@ export default class GameScene extends Scene {
           }
           player.mapN = mapN
 
-          let snapshotPosition = false
-        
-          this.snapshot = this.SI.calcInterpolation('x y')
-          if (this.snapshot) {
-            const { state } = this.snapshot
-            state.forEach(st => {
-              const { id, x, y } = st
-              if (parseInt(playerID) === id) {
-                player.animate(x, y)
-                player.setPosition(x, y)
-                snapshotPosition = true
-              }
-            })
-          }
-
-          if (!snapshotPosition) {
-            player.animate(x, y)
-            player.setPosition(x, y)
-          }
+          player.animate(x, y)
+          player.setPosition(x, y)
 
           if (mapN === this.mapN && damaged) player.damaged = true
           if (mapN === this.mapN && projectileFired > -1) player.projectiles.fireProjectile(projectileFired, player.setFireDir())
@@ -278,7 +267,6 @@ export default class GameScene extends Scene {
       addLatencyAndPackagesLoss(() => {
         this.channel.emit('pong', snapshot[0])
         this.SI.snapshot.add(snapshot[1])
-        // snapshotUpdate()
       })
     })
 
@@ -287,7 +275,10 @@ export default class GameScene extends Scene {
     })
   }
 
-  update(time, delta) {
+  update() {
+    const loop = this.sys.game.loop
+    this.fpsText.setText(`FPS: ${loop.actualFps.toFixed(2).toString()}`)
+
     const snapshotUpdate = () => {
       this.snapshot = this.SI.calcInterpolation('x y')
       // this.snapshot = this.SI.vault.get()
@@ -297,8 +288,12 @@ export default class GameScene extends Scene {
           const { id, x, y } = st
           if (Object.keys(this.players).includes(id.toString())) {
             let player = this.players[id.toString()]
-            player.animate(x, y)
-            player.setPosition(x, y)
+            if (id === this.playerID) {
+              player.clientMove()
+            }
+            else {
+              player.serverMove(x, y)
+            }
           }
           else {
             let newPlayer = new Player(this, id.toString(), 'N1', x, y, 'player')
