@@ -45,6 +45,15 @@ export default class Cursors {
       if (player) player.move = move
   
       let data = [move.up, move.down, move.left, move.right]
+
+      if (move.up || move.down || move.left || move.right) {
+        if (move.up) data = 'up'
+        else if (move.down) data = 'down'
+        else if (move.left) data = 'left'
+        else if (move.right) data = 'right'
+        else data = 'none'
+      }
+
       /**
        * Client request: update player's move state
        */

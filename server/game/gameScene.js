@@ -7,11 +7,7 @@ const __dirname = dirname(__filename)
 
 import geckos from '@geckos.io/server'
 import { iceServers } from '@geckos.io/server'
-
 import { SnapshotInterpolation } from '@geckos.io/snapshot-interpolation'
-
-import pkg from 'phaser'
-const { Scene } = pkg
 
 import quickselect from 'quickselect'
 
@@ -19,40 +15,13 @@ import { addLatencyAndPackagesLoss } from '../../common.js'
 import Player from './components/player.js'
 import CellMap from './components/cellMap.js'
 
-export class GameScene extends Phaser.Scene {
-  constructor() {
-    super({ key: 'GameScene' })
-    this.playerID = 0  // ID for the latest connected player
-    this.playerSpawned = false
-  }
-
-  init() {
-    this.io = geckos({
-      iceServers: process.env.NODE_ENV === 'production' ? iceServers : []
-    })
-    this.io.addServer(this.game.server)
-
-    const serverFPS = 60
-    this.physics.world.setFPS(serverFPS)  // Only for physics simulation
-    this.SI = new SnapshotInterpolation()
-  }
-
+class ServerScene extends Phaser.Scene {
   getShortStamp() {
     return parseInt(Date.now().toString().substr(-9))
   }
 
-  /**
-   * Sets the current ID for the latest connected player
-   *
-   * @return {integer} 
-   */
-  setPlayerID() {
-    return this.playerID++
-  }
-
   /** 
    * Makes string with player's info that will be sent through geckos
-   * 
    * @return {string}
    */
   encodePlayerData(player) {
@@ -63,7 +32,6 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Makes string or array containing all players' info
-   * 
    * @return {string} All players info concatenated
    */
   getState(format) {
@@ -75,6 +43,7 @@ export class GameScene extends Phaser.Scene {
           stateString += this.encodePlayerData(player)
           stateArray.push({
             id: player.playerID,
+            mapN: player.mapN,
             x: player.x,
             y: player.y
           })
@@ -83,6 +52,14 @@ export class GameScene extends Phaser.Scene {
     })
     if (format === 'string') return stateString
     else if (format === 'array') return stateArray
+  }
+
+  /**
+   * Sets the current ID for the latest connected player
+   * @return {integer} 
+   */
+  setPlayerID() {
+    return this.playerID++
   }
 
   setGroups() {
@@ -124,6 +101,15 @@ export class GameScene extends Phaser.Scene {
         // console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
       }
 
+      function playerWallHandler(player, wall) {
+        // player.colliding.none = false
+        // if (player.body.facing === 11) player.colliding.up = true
+        // else if (player.body.facing === 12) player.colliding.down = true
+        // else if (player.body.facing === 13) player.colliding.left = true
+        // else if (player.body.facing === 14) player.colliding.right = true
+        // console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
+      }
+
       function projectilePlayerHandler(player, projectile) {
         player.damaged = true
         projectile.collide()
@@ -139,8 +125,8 @@ export class GameScene extends Phaser.Scene {
         console.log('Warp collision to map:', newMapN, Phaser.Math.RND.integerInRange(0, 100))
       }
   
-      this.physics.add.collider(this.mapPlayers[mapN])
-      this.physics.add.collider(this.mapPlayers[mapN], this.mapWalls[mapN], collisionHandler)
+      // this.physics.add.collider(this.mapPlayers[mapN])
+      this.physics.add.collider(this.mapPlayers[mapN], this.mapWalls[mapN], playerWallHandler)
       this.physics.add.collider(this.mapPlayers[mapN], this.mapWarps[mapN], warpHandler)
 
       this.mapPlayers[mapN].children.iterate(player => {
@@ -170,6 +156,25 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.collider(this.mapPlayers[mapN])
   }
+}
+
+export class GameScene extends ServerScene {
+  constructor() {
+    super({ key: 'GameScene' })
+    this.playerID = 0  // ID for the latest connected player
+    this.playerSpawned = false
+  }
+
+  init() {
+    this.io = geckos({
+      iceServers: process.env.NODE_ENV === 'production' ? iceServers : []
+    })
+    this.io.addServer(this.game.server)
+
+    const serverFPS = 60
+    this.physics.world.setFPS(serverFPS)  // Only for physics simulation
+    this.SI = new SnapshotInterpolation()
+  }
 
   preload() {
     this.load.image('tilesCave',  path.join(__dirname, '../../dist/assets/img/tilesets/wang_cave.png'))
@@ -183,6 +188,8 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.setGroups()
+    
+    console.log(this.mapPlayers, 'maplayhers')
 
     this.io.onConnection(channel => {
       channel.latency = 0
@@ -209,7 +216,6 @@ export class GameScene extends Phaser.Scene {
 
       /**
        * Client: user disconnects
-       * 
        * Server [response]: kills player
        */
       channel.onDisconnect(() => {
@@ -233,7 +239,6 @@ export class GameScene extends Phaser.Scene {
 
       /**
        * Client [request]: new ID for connected player
-       * 
        * Server [response]: set new ID for connected player
        */
       channel.on('getPlayerID', () => {
@@ -243,11 +248,9 @@ export class GameScene extends Phaser.Scene {
 
       /**
        * Client [request]: add new player
-       * 
        * Server: creates new player instance and adds it to group
        */
       channel.on('playerAdd', data => {
-
         let mapN = 'N1'
         if (!Object.keys(this.mapPlayers).includes(mapN)) {
           this.mapPlayers[mapN] = this.add.group()
@@ -272,7 +275,6 @@ export class GameScene extends Phaser.Scene {
 
       /**
        * Client [request]: update player's move state
-       * 
        * Server: sets new move
        */
       channel.on('playerMove', data => {
@@ -289,7 +291,6 @@ export class GameScene extends Phaser.Scene {
 
       /**
        * Client [request]: update player's fire state
-       * 
        * Server: sets new projectiles
        */
        channel.on('playerFire', () => {
@@ -361,6 +362,28 @@ export class GameScene extends Phaser.Scene {
       })
     })
 
+    if (playersUpdates.length > 0) {
+      let timeStamp = this.getShortStamp()
+
+      this.playerSpawned = false
+
+      /**
+       * Server [request]: update players
+       */
+      this.io.room().emit('playersUpdate', [timeStamp, playersUpdates])
+    }
+
+    // let playersWarped = []
+
+    // Object.entries(this.mapPlayers).forEach(([mapN, players]) => {
+    //   players.children.iterate(player => {
+    //     let warped = player.mapN != player.prevMapN
+    //     if (warped) {
+    //       playersWarped.push(player)
+    //     }
+    //   })
+    // })
+
     if (playersWarped.length > 0) {
       playersWarped.forEach(player => {
         let prevMapN = player.prevMapN
@@ -412,17 +435,7 @@ export class GameScene extends Phaser.Scene {
         }
         else if (mapN.startsWith('R')) this.setRandomMap(mapN)
       })
-    }
-
-    if (playersUpdates.length > 0) {
-      let timeStamp = this.getShortStamp()
-
-      this.playerSpawned = false
-
-      /**
-       * Server [request]: update players
-       */
-      this.io.room().emit('playersUpdate', [timeStamp, playersUpdates])
+      this.playersWarped = []
     }
   }
 }

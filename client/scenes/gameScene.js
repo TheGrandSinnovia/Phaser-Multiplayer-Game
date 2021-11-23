@@ -7,23 +7,7 @@ import Player from '../components/player'
 import Cursors from '../components/cursors'
 import CellMap from '../components/cellMap'
 
-export default class GameScene extends Scene {
-  constructor() {
-    super({ key: 'GameScene' })
-    this.players = {}
-    this.playerID
-    this.mapN = 'N1'
-  }
-
-  init({ channel }) {
-    this.channel = channel
-
-    const snapshotRate = 15 // fps
-    this.SI = new SnapshotInterpolation(snapshotRate)
-    this.playerVault = new Vault()
-    this.snapshot
-  }
-
+class ClientScene extends Scene {
   playerRemove(playerID) {
     try {
       this.players[playerID].destroy()
@@ -32,6 +16,10 @@ export default class GameScene extends Scene {
     catch (error) {
       console.error(error.message)
     }
+  }
+
+  setGroups() {
+    this.mapPlayers = this.add.group()
   }
 
   setMap(mapN) {
@@ -53,7 +41,41 @@ export default class GameScene extends Scene {
       color: '#fff',
       fontSize: 14,
       fontFamily: 'Arial'
-    })      
+    })
+    
+    const setWalls = mapN => {
+      this.mapWalls = this.map.createFromObjects('Walls', { classType: Phaser.Physics.Arcade.Sprite })
+      this.mapWalls.forEach(wall => {
+        this.add.existing(wall)
+        this.physics.add.existing(wall)
+  
+        wall.y = wall.y + wall.displayHeight
+        wall.body.setEnable()
+        wall.body.setImmovable()
+        wall.setAlpha(0)
+      })
+    }
+
+    const setCollisions = mapN => {
+      function collisionHandler(obj1, obj2) {
+        // console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
+      }
+
+      function playerWallHandler(player, wall) {
+        // player.colliding.none = false
+        // if (player.body.facing === 11) player.colliding.up = true
+        // else if (player.body.facing === 12) player.colliding.down = true
+        // else if (player.body.facing === 13) player.colliding.left = true
+        // else if (player.body.facing === 14) player.colliding.right = true
+        console.log('Collision', Phaser.Math.RND.integerInRange(0, 100))
+      }
+
+      // this.physics.add.collider(this.mapPlayers)
+      this.physics.add.collider(this.mapPlayers, this.mapWalls, playerWallHandler)
+    }
+
+    setWalls(mapN)
+    setCollisions(mapN)
   }
 
   setRandomMap(mapN) {
@@ -82,6 +104,27 @@ export default class GameScene extends Scene {
       })
     }
   }
+}
+
+export default class GameScene extends ClientScene {
+  constructor() {
+    super({ key: 'GameScene' })
+    this.players = {}
+    this.playerID
+    this.mapN = 'N1'
+  }
+
+  init({ channel }) {
+    this.channel = channel
+
+    const serverFPS = 60
+    this.physics.world.setFPS(serverFPS)  // Only for physics simulation
+
+    const snapshotRate = 15 // fps
+    this.SI = new SnapshotInterpolation(snapshotRate)
+    this.playerVault = new Vault()
+    this.snapshot
+  }
 
   preload() {
     this.load.spritesheet('player', 'assets/img/player/elfy.png', {frameWidth: 32, frameHeight: 32})
@@ -98,6 +141,7 @@ export default class GameScene extends Scene {
   async create() {
     this.cursors = new Cursors(this, this.channel)
 
+    this.setGroups()
     this.setMap('N1')
     this.setWallsDebug(false)
 
@@ -129,7 +173,7 @@ export default class GameScene extends Scene {
             damaged: parseInt(u[i + 3]) === 1 ? true : false,
             projectileFired: parseInt(u[i + 4]),
             projectileCollided: parseInt(u[i + 5]),
-            // projectileCollided: parseCollided(u[i + 4]),
+            // projectileCollided: parseCollided(u[i + 5]),
             x: parseInt(u[i + 6], 36),
             y: parseInt(u[i + 7], 36)
           })
@@ -187,8 +231,7 @@ export default class GameScene extends Scene {
           }
           player.mapN = mapN
 
-          player.animate(x, y)
-          player.setPosition(x, y)
+          player.serverMove(x, y)
 
           if (mapN === this.mapN && damaged) player.damaged = true
           if (mapN === this.mapN && projectileFired > -1) player.projectiles.fireProjectile(projectileFired, player.setFireDir())
@@ -198,15 +241,15 @@ export default class GameScene extends Scene {
         else {
           console.log('New player! ID:', playerID, playerUpdate)
 
-          let newPlayer = new Player(this, playerID, mapN, 0, 0, 'player')
+          let playerNew = new Player(this, playerID, mapN, 0, 0, 'player')
           if (mapN === this.mapN) {
-            newPlayer.setAlpha(alpha)
+            playerNew.setAlpha(alpha)
           }
           else {
-            newPlayer.setAlpha(0)
+            playerNew.setAlpha(0)
           }          
-          newPlayer.setDepth(99) // !Revise
-          this.players = { ...this.players, [playerID]: newPlayer}
+          playerNew.setDepth(99) // !Revise
+          this.players = { ...this.players, [playerID]: playerNew}
         }
       })
     }
@@ -224,7 +267,6 @@ export default class GameScene extends Scene {
 
       /**
        * Server [request]: set new ID for connected player
-       * 
        * Client [response]: add new player
        */
       this.channel.on('setPlayerID', playerID36 => {
@@ -238,20 +280,18 @@ export default class GameScene extends Scene {
 
     /**
      * Server [request]: update players
-     * 
      * Client: updates players
      */
-    // this.channel.on('playersUpdate', playerUpdates => {
-    //   addLatencyAndPackagesLoss(() => {
-    //     this.channel.emit('pong', playerUpdates[0])      
-    //     let parsedUpdates = parseUpdates(playerUpdates[1])
-    //     updatesHandler(parsedUpdates)
-    //   })
-    // })
+    this.channel.on('playersUpdate', playerUpdates => {
+      addLatencyAndPackagesLoss(() => {
+        this.channel.emit('pong', playerUpdates[0])      
+        let parsedUpdates = parseUpdates(playerUpdates[1])
+        // updatesHandler(parsedUpdates)
+      })
+    })
 
     /**
      * Server [request]: delete player
-     * 
      * Client: deletes player
      */
     this.channel.on('playerRemove', playerID => {
@@ -260,7 +300,6 @@ export default class GameScene extends Scene {
 
     /**
      * Server [request]: update snapshot
-     * 
      * Client: updates snapshot
      */
     this.channel.on('snapshotUpdate', snapshot => {
@@ -285,20 +324,58 @@ export default class GameScene extends Scene {
       if (this.snapshot) {
         const { state } = this.snapshot
         state.forEach(st => {
-          const { id, x, y } = st
+          const { id, mapN, x, y } = st
           if (Object.keys(this.players).includes(id.toString())) {
             let player = this.players[id.toString()]
+            let warped = false
+
+            // SET MAP
             if (id === this.playerID) {
+              if (mapN != this.mapN) {
+                warped = true
+                player.x += 200
+                player.y += 333
+
+                this.mapN = mapN
+    
+                this.background.destroy()
+                this.floor.destroy()
+                this.scenery.destroy()
+                this.doors.destroy()
+    
+                if (this.mapN.startsWith('N')) {
+                  this.setMap(this.mapN),
+                  this.setWallsDebug(false)}
+                else if (this.mapN.startsWith('R')) this.setRandomMap(this.mapN)
+    
+                // Only show players from this map
+                Object.entries(this.players).forEach(([playerID, playerTarget]) => {
+                  if (mapN != this.mapN) {
+                    console.log('Remove player', playerID, 'from this map:', this.mapN)
+                    playerTarget.setAlpha(0)
+                    // this.playerRemove(player.playerID)
+                  }
+                  else {
+                    console.log('Show player', playerID, 'from this map:', this.mapN)
+                    playerTarget.setAlpha(1)                
+                  }
+                })
+              }
+            }
+            // SET MOVE
+            if (id === this.playerID && !warped) {
               player.clientMove()
+              // player.serverMove(x, y)
             }
             else {
               player.serverMove(x, y)
             }
           }
           else {
-            let newPlayer = new Player(this, id.toString(), 'N1', x, y, 'player')
-            newPlayer.setDepth(99) // !Revise
-            this.players = { ...this.players, [id.toString()]: newPlayer}
+            let playerNew = new Player(this, id.toString(), 'N1', x, y, 'player')
+            playerNew.setDepth(99) // !Revise
+            this.mapPlayers.add(playerNew)
+            this.players = { ...this.players, [id.toString()]: playerNew}
           }
         })
       }

@@ -1,10 +1,15 @@
 import Phaser from 'phaser'
 import Projectiles from './projectiles.js'
 
-export default class Player extends Phaser.GameObjects.Sprite {
+export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, playerID, mapN, x, y, texture) {
     super(scene, x, y, texture)
     scene.add.existing(this)
+    scene.physics.add.existing(this)
+
+    this.body.setSize(22, 32)
+    this.setPushable(false)
+    this.setCollideWorldBounds(true)
 
     this.scene = scene
     this.texture = texture
@@ -145,27 +150,28 @@ export default class Player extends Phaser.GameObjects.Sprite {
 
   clientMove() {
     /* CLIENT PREDICTION */
-    let speed = 3
+    let speed = 160
 
     // If there is a move state, move player
     if (this.move.up) {
       this.animate(this.x, this.y - speed)
-      this.y -= speed
+      this.setVelocity(0, -speed)
     }
     else if (this.move.down) {
       this.animate(this.x, this.y + speed)
-      this.y += speed
+      this.setVelocity(0, speed)
     }
     else if (this.move.left) {
       this.animate(this.x - speed, this.y)
-      this.x -= speed
+      this.setVelocity(-speed, 0)
     }
     else if (this.move.right) {
       this.animate(this.x + speed, this.y)
-      this.x += speed 
+      this.setVelocity(speed, 0)
     }
     else {
       this.animate(this.x, this.y)
+      this.setVelocity(0, 0)
     }
 
     this.scene.playerVault.add(
