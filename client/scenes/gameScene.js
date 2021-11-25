@@ -122,8 +122,9 @@ export default class GameScene extends ClientScene {
 
     const snapshotRate = 15 // fps
     this.SI = new SnapshotInterpolation(snapshotRate)
+    this.serverVault = this.SI.vault
     this.playerVault = new Vault()
-    this.snapshot
+    this.interpolatedSnapshot
   }
 
   preload() {
@@ -319,10 +320,10 @@ export default class GameScene extends ClientScene {
     this.fpsText.setText(`FPS: ${loop.actualFps.toFixed(2).toString()}`)
 
     const snapshotUpdate = () => {
-      this.snapshot = this.SI.calcInterpolation('x y')
-      // this.snapshot = this.SI.vault.get()
-      if (this.snapshot) {
-        const { state } = this.snapshot
+      this.interpolatedSnapshot = this.SI.calcInterpolation('x y')
+      // const snapshot = this.SI.vault.get()
+      if (this.interpolatedSnapshot) {
+        const { state } = this.interpolatedSnapshot
         state.forEach(st => {
           const { id, mapN, x, y } = st
           if (Object.keys(this.players).includes(id.toString())) {

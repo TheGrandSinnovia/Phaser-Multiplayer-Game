@@ -44,7 +44,9 @@ export default class Cursors {
 
       if (player) player.move = move
   
-      let data = [move.up, move.down, move.left, move.right]
+      // let data = [move.up, move.down, move.left, move.right]
+
+      let data = ''
 
       if (move.up || move.down || move.left || move.right) {
         if (move.up) data = 'up'

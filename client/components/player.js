@@ -111,68 +111,28 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  serverMove(x, y) {
-    // Reset move
-    this.move = {
-      up: false,
-      down: false,
-      left: false,
-      right: false,
-    }
-
-    let dir = new Phaser.Math.Vector2(x - this.x, y - this.y).normalize()
-
-    // Sometimes values are 0.999...
-    dir.x = Math.round(dir.x)
-    dir.y = Math.round(dir.y)
-
-    let up = new Phaser.Math.Vector2(0, -1)
-    let down = new Phaser.Math.Vector2(0, 1)
-    let left = new Phaser.Math.Vector2(-1, 0)
-    let right = new Phaser.Math.Vector2(1, 0)
-
-    if (dir.equals(up)) {
-      this.move.up = true
-    }
-    else if (dir.equals(down)) {
-      this.move.down = true
-    }
-    else if (dir.equals(left)) {
-      this.move.left = true
-    }
-    else if (dir.equals(right)) {
-      this.move.right = true
-    }
-
-    this.setPosition(x, y)
-    this.animate()
-  }
-
   clientMove() {
     /* CLIENT PREDICTION */
     let speed = 160
 
     // If there is a move state, move player
     if (this.move.up) {
-      this.animate(this.x, this.y - speed)
       this.setVelocity(0, -speed)
     }
     else if (this.move.down) {
-      this.animate(this.x, this.y + speed)
       this.setVelocity(0, speed)
     }
     else if (this.move.left) {
-      this.animate(this.x - speed, this.y)
       this.setVelocity(-speed, 0)
     }
     else if (this.move.right) {
-      this.animate(this.x + speed, this.y)
       this.setVelocity(speed, 0)
     }
     else {
-      this.animate(this.x, this.y)
       this.setVelocity(0, 0)
     }
+
+    this.animate()
 
     this.scene.playerVault.add(
       this.scene.SI.snapshot.create([{ id: this.playerID, x: this.x, y: this.y }])
@@ -197,12 +157,60 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const isMoving = this.move.up || this.move.down || this.move.left || this.move.right
 
       // we correct the position faster if the player moves
-      const correction = isMoving ? 120 : 240
+      const correction = isMoving ? 60 : 180
 
       // apply a step by step correction of the player's position
       this.x -= offsetX / correction
       this.y -= offsetY / correction
     }
+  }
+
+  serverMove(x, y) {
+    const distanceX = x - this.x
+    const distanceY = y - this.y
+
+    // Reset move
+    this.move = {
+      up: false,
+      down: false,
+      left: false,
+      right: false,
+    }
+
+    let dir = new Phaser.Math.Vector2(distanceX, distanceY).normalize()
+
+    // Sometimes values are 0.999...
+    dir.x = Math.round(dir.x)
+    dir.y = Math.round(dir.y)
+
+    let up = new Phaser.Math.Vector2(0, -1)
+    let down = new Phaser.Math.Vector2(0, 1)
+    let left = new Phaser.Math.Vector2(-1, 0)
+    let right = new Phaser.Math.Vector2(1, 0)
+
+    let speed = 160
+
+    if (dir.equals(up)) {
+      this.move.up = true
+      this.setVelocity(0, -speed)
+    }
+    else if (dir.equals(down)) {
+      this.move.down = true
+      this.setVelocity(0, speed)
+    }
+    else if (dir.equals(left)) {
+      this.move.left = true
+      this.setVelocity(-speed, 0)
+    }
+    else if (dir.equals(right)) {
+      this.move.right = true
+      this.setVelocity(speed, 0)
+    }
+    else {
+      this.setVelocity(0, 0)
+    }
+
+    this.animate()
   }
 
   getDamage() {

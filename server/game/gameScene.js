@@ -127,7 +127,7 @@ class ServerScene extends Phaser.Scene {
   
       // this.physics.add.collider(this.mapPlayers[mapN])
       this.physics.add.collider(this.mapPlayers[mapN], this.mapWalls[mapN], playerWallHandler)
-      this.physics.add.collider(this.mapPlayers[mapN], this.mapWarps[mapN], warpHandler)
+      // this.physics.add.collider(this.mapPlayers[mapN], this.mapWarps[mapN], warpHandler)
 
       this.mapPlayers[mapN].children.iterate(player => {
         this.mapProjectileCollidersPlayers[player.playerID] = this.physics.add.collider(this.mapPlayers[mapN], player.projectiles, projectilePlayerHandler)
@@ -174,6 +174,7 @@ export class GameScene extends ServerScene {
     const serverFPS = 60
     this.physics.world.setFPS(serverFPS)  // Only for physics simulation
     this.SI = new SnapshotInterpolation()
+    this.serverVault = this.SI.vault
   }
 
   preload() {
@@ -188,8 +189,6 @@ export class GameScene extends ServerScene {
 
   create() {
     this.setGroups()
-    
-    console.log(this.mapPlayers, 'maplayhers')
 
     this.io.onConnection(channel => {
       channel.latency = 0
@@ -315,7 +314,7 @@ export class GameScene extends ServerScene {
     if (frame % 4 === 0) {
       let timeStamp = this.getShortStamp()
       let snapshot = this.SI.snapshot.create(this.getState('array'))
-      this.SI.vault.add(snapshot)
+      this.serverVault.add(snapshot)
     
       this.io.room().emit('snapshotUpdate', [timeStamp, snapshot])
     }
